@@ -8,7 +8,7 @@ Poker GTO Explorer is a web application built with Flask for visualizing and ana
 # Clone the repository
 
 ```bash
-git clone [<repository-url>](https://github.com/EricFan2002/GTOJsonExplorer)
+git clone https://github.com/EricFan2002/GTOJsonExplorer
 
 cd GTOJsonExplorer
 ```
