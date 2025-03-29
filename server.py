@@ -116,6 +116,45 @@ def get_hand_matrix(session_id):
         return jsonify({'error': str(e)}), 500
 
 
+@app.route('/api/direct_node/<session_id>', methods=['GET'])
+def get_direct_node(session_id):
+    """Direct node access when regular path navigation fails"""
+    if session_id not in loaded_trees:
+        return jsonify({'error': 'Session not found'}), 404
+
+    path = request.args.get('path', '')
+    action_sequence = request.args.get('actions', '')
+    processor = loaded_trees[session_id]
+
+    try:
+        # First try using the normal method
+        node_info = processor.get_node_info(path)
+        return jsonify(node_info)
+    except Exception as e:
+        # If that fails, try finding the node by action sequence
+        if action_sequence:
+            try:
+                actions = action_sequence.split(',')
+                node = processor.get_node_by_action_sequence(actions)
+                if node:
+                    # Create minimal node info
+                    return jsonify({
+                        "node_type": node.get("node_type", "unknown"),
+                        "player": node.get("player", 0),
+                        "actions": node.get("actions", []),
+                        "has_strategy": "strategy" in node,
+                        "path": path
+                    })
+            except Exception as inner_e:
+                pass
+
+        # Last resort - return an error with recovery info
+        return jsonify({
+            'error': str(e),
+            'recovery_info': 'Node not found in tree structure. Try navigating through a different path.'
+        }), 404
+
+
 @app.route('/api/ev_analysis/<session_id>', methods=['GET'])
 def get_ev_analysis(session_id):
     """Get EV analysis data for a specific node"""

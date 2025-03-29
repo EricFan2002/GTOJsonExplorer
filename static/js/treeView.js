@@ -5,13 +5,29 @@ const treeView = {
     treeData: null,
     treeContainer: null,
     loadedNodes: new Set(),
-    maxDepth: 50, // Default max depth
+    maxDepth: 50, // Default max depth for full tree
+    actionSequence: [], // Track action sequence for direct node access
 
     // Render the tree
     renderTree(data, container) {
         this.treeData = data;
         this.treeContainer = container;
         container.innerHTML = '';
+
+        // Add expand all button
+        const controlsDiv = document.createElement('div');
+        controlsDiv.className = 'tree-controls';
+        controlsDiv.style.padding = '5px';
+        controlsDiv.style.marginBottom = '10px';
+
+        const expandAllBtn = document.createElement('button');
+        expandAllBtn.className = 'btn btn-sm';
+        expandAllBtn.textContent = 'Expand All';
+        expandAllBtn.title = 'Expand all visible nodes';
+        expandAllBtn.addEventListener('click', () => this.expandAllVisible());
+
+        controlsDiv.appendChild(expandAllBtn);
+        container.appendChild(controlsDiv);
 
         // Create tree root
         const rootItem = this.createTreeItem(data);
@@ -28,8 +44,17 @@ const treeView = {
     preExpandLevels(depth) {
         if (!this.treeContainer) return;
 
-        const expandRecursive = (element, currentDepth) => {
+        const expandRecursive = (element, currentDepth, parentIsCards = false) => {
             if (currentDepth >= depth) return;
+
+            // Check if this is a cards node
+            const isCardsNode = element.querySelector('.tree-node-cards') !== null ||
+                element.classList.contains('tree-node-type-cards');
+
+            // Don't auto-expand cards nodes or their children
+            if (parentIsCards || isCardsNode) {
+                return;
+            }
 
             const toggle = element.querySelector(':scope > .tree-item > .tree-toggle');
             if (toggle && toggle.innerHTML === '▶') {
@@ -40,35 +65,79 @@ const treeView = {
                     const children = element.querySelector(':scope > .tree-children');
                     if (children) {
                         Array.from(children.children).forEach(child => {
-                            expandRecursive(child, currentDepth + 1);
+                            // Pass isCardsNode to track if parent is a cards node
+                            expandRecursive(child, currentDepth + 1, isCardsNode);
                         });
                     }
                 }, 0);
             }
         };
 
-        expandRecursive(this.treeContainer.firstChild, 0);
-    },
+        expandRecursive(this.treeContainer.firstChild, 0, false);
+    }
+
+    ,
 
     // Expand all visible nodes
     expandAllVisible() {
         if (!this.treeContainer) return;
 
-        // Get all visible collapsed nodes
-        const collapsedToggles = this.treeContainer.querySelectorAll('.tree-toggle:not(.hidden)');
-        collapsedToggles.forEach(toggle => {
-            if (toggle.innerHTML === '▶') {
-                this.toggleNode(toggle);
-            }
-        });
+        // Show loading indicator
+        const loadingEl = document.createElement('div');
+        loadingEl.textContent = 'Expanding nodes...';
+        loadingEl.style.padding = '5px';
+        loadingEl.style.fontStyle = 'italic';
+        this.treeContainer.insertBefore(loadingEl, this.treeContainer.firstChild.nextSibling);
+
+        // Use setTimeout to avoid freezing the UI
+        setTimeout(() => {
+            // Get all visible collapsed nodes
+            const collapsedToggles = this.treeContainer.querySelectorAll('.tree-toggle:not(.hidden)');
+
+            // Process in batches to avoid UI freeze
+            const processBatch = (startIdx, batchSize) => {
+                const endIdx = Math.min(startIdx + batchSize, collapsedToggles.length);
+
+                for (let i = startIdx; i < endIdx; i++) {
+                    const toggle = collapsedToggles[i];
+                    if (toggle.innerHTML === '▶') {
+                        this.toggleNode(toggle);
+                    }
+                }
+
+                // Update loading message
+                loadingEl.textContent = `Expanding nodes... (${endIdx}/${collapsedToggles.length})`;
+
+                // Process next batch or finish
+                if (endIdx < collapsedToggles.length) {
+                    setTimeout(() => processBatch(endIdx, batchSize), 0);
+                } else {
+                    this.treeContainer.removeChild(loadingEl);
+                }
+            };
+
+            // Start processing in batches of 50
+            processBatch(0, 50);
+        }, 0);
     },
 
-    // Create a tree item
+    // Create a tree item with no placeholders between levels
     createTreeItem(node) {
         const li = document.createElement('li');
 
         // Add metadata for searching and navigation
         li.dataset.path = node.path || '';
+        li.dataset.nodeName = node.name || '';
+
+        // Set appropriate CSS class based on node type
+        if (node.type === 'action') {
+            const actionType = this.getActionType(node.name);
+            li.className = `tree-node-type-action action-${actionType}`;
+        } else if (node.type === 'cards') {
+            li.className = 'tree-node-type-cards';
+        } else if (node.type === 'card') {
+            li.className = 'tree-node-type-card';
+        }
 
         // Create item container
         const item = document.createElement('div');
@@ -78,6 +147,10 @@ const treeView = {
         // Add click event to navigate
         item.addEventListener('click', (e) => {
             e.stopPropagation();
+            // Store action sequence for recovery
+            if (node.type === 'action' && node.name) {
+                this.actionSequence.push(node.name);
+            }
             window.navigateToPath(node.path);
         });
 
@@ -93,7 +166,7 @@ const treeView = {
             });
             item.appendChild(toggle);
         } else {
-            // For nodes without children, don't show a toggle
+            // For nodes without children, don't show a toggle but maintain spacing
             toggle = document.createElement('span');
             toggle.classList.add('tree-toggle', 'hidden');
             toggle.style.visibility = 'hidden';
@@ -103,6 +176,7 @@ const treeView = {
 
         // Add label with appropriate styling
         const label = document.createElement('span');
+        label.className = 'tree-node-label';
 
         if (node.type === 'action') {
             // Style based on action type
@@ -117,7 +191,7 @@ const treeView = {
             }
         }
 
-        label.textContent = node.name;
+        label.textContent = node.name || 'Root';
         item.appendChild(label);
 
         li.appendChild(item);
@@ -127,21 +201,15 @@ const treeView = {
             const childrenContainer = document.createElement('ul');
             childrenContainer.classList.add('tree-children', 'collapsed');
 
-            // Add children (limit initial depth to improve performance)
-            if (this.getDepth(node.path) < 3) {
-                node.children.forEach(child => {
+            // Directly add all child nodes without any placeholders
+            node.children.forEach(child => {
+                if (child) { // Only add valid children
                     const childItem = this.createTreeItem(child);
                     childrenContainer.appendChild(childItem);
-                });
-                this.loadedNodes.add(node.path);
-            } else {
-                // Add a placeholder for lazy loading
-                const placeholderItem = document.createElement('li');
-                placeholderItem.textContent = 'Loading...';
-                placeholderItem.classList.add('loading-placeholder');
-                childrenContainer.appendChild(placeholderItem);
-            }
+                }
+            });
 
+            this.loadedNodes.add(node.path);
             li.appendChild(childrenContainer);
         }
 
@@ -165,12 +233,6 @@ const treeView = {
                 // Expand
                 childrenContainer.classList.remove('collapsed');
                 toggle.innerHTML = '▼';
-
-                // Load children if needed
-                const path = item.dataset.path;
-                if (!this.loadedNodes.has(path)) {
-                    this.loadChildren(path, childrenContainer);
-                }
             } else {
                 // Collapse
                 childrenContainer.classList.add('collapsed');
@@ -179,39 +241,51 @@ const treeView = {
         }
     },
 
-    // Load children dynamically
-    loadChildren(path, container) {
-        // Remove loading placeholder
-        const placeholder = container.querySelector('.loading-placeholder');
-        if (placeholder) {
-            container.removeChild(placeholder);
-        }
+    // Handle node data not found error in client side
+    handleNodeNotFound(path, container) {
+        const errorDiv = document.createElement('div');
+        errorDiv.className = 'tree-error';
+        errorDiv.style.color = 'red';
+        errorDiv.style.padding = '5px';
+        errorDiv.style.margin = '5px 0';
+        errorDiv.textContent = 'Node data not found.';
 
-        // Find node in tree data
-        const node = this.findNodeByPath(this.treeData, path);
-        if (node && node.children) {
-            node.children.forEach(child => {
-                const childItem = this.createTreeItem(child);
-                container.appendChild(childItem);
-            });
+        const retryBtn = document.createElement('button');
+        retryBtn.textContent = 'Retry';
+        retryBtn.className = 'btn btn-sm';
+        retryBtn.style.marginLeft = '5px';
+        retryBtn.addEventListener('click', async (e) => {
+            e.stopPropagation();
 
-            this.loadedNodes.add(path);
-        }
-    },
+            // Try direct node access as a fallback
+            try {
+                // Show loading
+                errorDiv.textContent = 'Trying alternative method...';
+                errorDiv.style.color = 'blue';
 
-    // Find a node in the tree data by path
-    findNodeByPath(rootNode, targetPath) {
-        if (!rootNode || !targetPath) return null;
-        if (rootNode.path === targetPath) return rootNode;
+                // Try to directly load the node via action sequence
+                const response = await fetch(`/api/direct_node/${app.sessionId}?path=${encodeURIComponent(path)}&actions=${this.actionSequence.join(',')}`);
 
-        if (rootNode.children) {
-            for (const child of rootNode.children) {
-                const found = this.findNodeByPath(child, targetPath);
-                if (found) return found;
+                if (response.ok) {
+                    // If successful, refresh the UI
+                    window.navigateToPath(path);
+                    container.removeChild(errorDiv);
+                } else {
+                    // Show error message
+                    const data = await response.json();
+                    errorDiv.textContent = data.error || 'Failed to load node';
+                    errorDiv.style.color = 'red';
+                    errorDiv.appendChild(retryBtn);
+                }
+            } catch (error) {
+                errorDiv.textContent = 'Error: ' + error.message;
+                errorDiv.style.color = 'red';
+                errorDiv.appendChild(retryBtn);
             }
-        }
+        });
 
-        return null;
+        errorDiv.appendChild(retryBtn);
+        container.appendChild(errorDiv);
     },
 
     // Helper function to determine action type
@@ -253,34 +327,32 @@ const treeView = {
     expandToFindNode(path) {
         if (!path) return;
 
-        // Get the longest parent path that might be visible
+        // Get the path components
         const parts = path.split('/').filter(p => p);
 
         // Try to find increasingly longer parent paths
-        for (let i = 1; i <= parts.length; i++) {
-            const partialPath = '/' + parts.slice(0, i).join('/');
-            const parentItem = document.querySelector(`.tree-item[data-path="${partialPath}"]`);
+        let currentPath = '';
+        for (let i = 0; i < parts.length; i++) {
+            currentPath += '/' + parts[i];
 
+            const parentItem = document.querySelector(`.tree-item[data-path="${currentPath}"]`);
             if (parentItem) {
                 const toggle = parentItem.querySelector('.tree-toggle');
                 if (toggle && toggle.innerHTML === '▶') {
                     // Expand this node
                     this.toggleNode(toggle);
-
-                    // If this is the target path, we're done
-                    if (partialPath === path) {
-                        parentItem.classList.add('selected');
-                        setTimeout(() => {
-                            parentItem.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                        }, 100);
-                        return;
-                    }
                 }
             }
         }
 
-        // If we get here, we couldn't find the node even after expanding
-        console.log(`Could not find node with path: ${path}`);
+        // After expanding all available nodes in the path, check again for our target
+        setTimeout(() => {
+            const item = document.querySelector(`.tree-item[data-path="${path}"]`);
+            if (item) {
+                item.classList.add('selected');
+                item.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }
+        }, 100);
     },
 
     // Expand the path to a node

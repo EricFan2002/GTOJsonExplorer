@@ -107,6 +107,27 @@ class GameTreeProcessor:
 
         return count_nodes(self.game_tree)
 
+    def get_node_by_action_sequence(self, actions):
+        """Find a node by following a sequence of actions from the root"""
+        if not actions:
+            return self.game_tree
+
+        node = self.game_tree
+        for action in actions:
+            if "childrens" in node and action in node["childrens"]:
+                node = node["childrens"][action]
+            elif "actions" in node and action in node["actions"]:
+                # If we have the action but not the child node, try to guess the structure
+                for key in node:
+                    if isinstance(node[key], dict) and not key.startswith("_"):
+                        if "actions" in node[key] and action in node[key]["actions"]:
+                            node = node[key]
+                            break
+            else:
+                return None
+
+        return node
+
     def get_tree_structure(self):
         """Generate a simplified tree structure for the frontend"""
         def build_tree(node, path="", depth=0, max_depth=15):
@@ -193,12 +214,12 @@ class GameTreeProcessor:
         return build_tree(self.game_tree)
 
     def find_node_by_path(self, path):
-        """Find a node in the game tree by its path"""
+        """Find a node in the game tree by its path - improved version"""
         # Check cache first
         if path in self.node_cache:
             return self.node_cache[path]
 
-        if not path or not self.game_tree:
+        if not path or path == '/':
             return self.game_tree
 
         parts = [p for p in path.split('/') if p]
@@ -215,7 +236,20 @@ class GameTreeProcessor:
                     node = node["childrens"][action]
                     i += 2  # Skip both "childrens" and the action name
                 else:
-                    return None
+                    # Try to navigate using actions directly if childrens doesn't exist
+                    if "actions" in node and action in node["actions"]:
+                        if isinstance(node["actions"], list) and action in node["actions"]:
+                            # Try to find the action in a different structure
+                            for child_key in node:
+                                if isinstance(node[child_key], dict) and child_key != "childrens":
+                                    child = node[child_key]
+                                    if "node_type" in child and child.get("actions", []) == action:
+                                        node = child
+                                        i += 2
+                                        break
+                        i += 2  # Skip anyway to try to continue
+                    else:
+                        return None
             elif part == "dealcards" and i+1 < len(parts):
                 # Next part is the card
                 card = parts[i+1]
@@ -223,12 +257,29 @@ class GameTreeProcessor:
                     node = node["dealcards"][card]
                     i += 2  # Skip both "dealcards" and the card name
                 else:
-                    return None
+                    # Try alternate paths
+                    if "cards" in node and card in node["cards"]:
+                        node = node["cards"][card]
+                        i += 2
+                    else:
+                        return None
             elif part in node:
                 node = node[part]
                 i += 1
             else:
-                return None
+                # Special case: sometimes the path structure is flattened
+                potential_match = False
+                for key in node:
+                    if isinstance(node[key], dict) and "node_type" in node[key]:
+                        # Check if this could be our target
+                        if key == part or (key == "childrens" and part in node[key]):
+                            node = node[key] if key == part else node[key][part]
+                            potential_match = True
+                            i += 1
+                            break
+
+                if not potential_match:
+                    return None
 
         # Store in cache
         self.node_cache[path] = node
@@ -565,83 +616,48 @@ class GameTreeProcessor:
         if not node or "strategy" not in node:
             return {"has_strategy": False}
 
-        strategy = node["strategy"]
-        if "actions" not in strategy or "strategy" not in strategy:
+        # Get base strategy info to avoid duplication
+        strategy_info = self.get_strategy_info(path)
+        if not strategy_info["has_strategy"]:
             return {"has_strategy": False}
 
-        actions = strategy["actions"]
-        hand_strategies = strategy["strategy"]
+        # Reuse existing data instead of recalculating
+        result = {
+            "has_strategy": True,
+            "actions": strategy_info.get("actions", []),
+            "action_frequencies": strategy_info.get("action_frequencies", {}),
+        }
 
-        # Calculate action frequencies
-        action_totals = defaultdict(float)
-        action_counts = defaultdict(int)
+        # Only include hand composition if we're not already showing it in another view
+        if "hand_composition" in strategy_info:
+            result["hand_composition"] = strategy_info["hand_composition"]
 
-        for _, probs in hand_strategies.items():
-            for i, prob in enumerate(probs):
-                if i < len(actions):
-                    action = actions[i]
-                    action_totals[action] += float(prob)
-                    action_counts[action] += 1
-
-        action_frequencies = {}
-        for action in actions:
-            if action_counts[action] > 0:
-                action_frequencies[action] = round(action_totals[action] / action_counts[action] * 100, 2)
-            else:
-                action_frequencies[action] = 0
-
-        # Count hand types
-        pairs_count = 0
-        suited_count = 0
-        offsuit_count = 0
-
-        for hand_key in hand_strategies.keys():
-            if len(hand_key) == 4:
-                rank1, suit1, rank2, suit2 = hand_key[0], hand_key[1], hand_key[2], hand_key[3]
-                if rank1 == rank2:
-                    pairs_count += 1
-                elif suit1 == suit2:
-                    suited_count += 1
-                else:
-                    offsuit_count += 1
-
-        total_hands = pairs_count + suited_count + offsuit_count
-
-        # Analysis tips
+        # Generate EV-specific tips that aren't shown elsewhere
         tips = []
 
         # Find most common action
-        most_common_action = max(action_frequencies.items(), key=lambda x: x[1])[0]
-        most_common_pct = action_frequencies[most_common_action]
-        tips.append(f"Most frequent action: {most_common_action} ({most_common_pct:.1f}%)")
+        if "action_frequencies" in result:
+            action_frequencies = result["action_frequencies"]
+            if action_frequencies:
+                most_common_action = max(action_frequencies.items(), key=lambda x: x[1])[0]
+                most_common_pct = action_frequencies[most_common_action]
+                tips.append(f"Most frequent action: {most_common_action} ({most_common_pct:.1f}%)")
 
-        # Check for polarization
-        if len(actions) >= 2:
-            sorted_actions = sorted(action_frequencies.items(), key=lambda x: x[1], reverse=True)
-            if len(sorted_actions) >= 2:
-                if sorted_actions[0][1] > 50 and sorted_actions[1][1] > 30:
-                    tips.append(f"Strategy is polarized between {sorted_actions[0][0]} and {sorted_actions[1][0]}")
-                elif sorted_actions[0][1] > 70:
-                    tips.append(f"Strategy strongly favors {sorted_actions[0][0]}")
+                # Check for polarization
+                sorted_actions = sorted(action_frequencies.items(), key=lambda x: x[1], reverse=True)
+                if len(sorted_actions) >= 2:
+                    if sorted_actions[0][1] > 50 and sorted_actions[1][1] > 30:
+                        tips.append(f"Strategy is polarized between {sorted_actions[0][0]} and {sorted_actions[1][0]}")
+                    elif sorted_actions[0][1] > 70:
+                        tips.append(f"Strategy strongly favors {sorted_actions[0][0]}")
 
-        # Board analysis if applicable
-        board_analysis = None
-        if "board" in node:
-            board_analysis = self.analyze_board_texture(node["board"])
+        result["tips"] = tips
 
-        return {
-            "has_strategy": True,
-            "actions": actions,
-            "action_frequencies": action_frequencies,
-            "hand_composition": {
-                "pairs": pairs_count,
-                "suited": suited_count,
-                "offsuit": offsuit_count,
-                "total": total_hands
-            },
-            "tips": tips,
-            "board_analysis": board_analysis
-        }
+        # Include board analysis
+        if "board_analysis" in strategy_info:
+            result["board_analysis"] = strategy_info["board_analysis"]
+
+        return result
 
     def analyze_board_texture(self, board):
         """Analyze the board texture and return analysis"""

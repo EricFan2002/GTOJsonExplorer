@@ -500,6 +500,143 @@ function updateNavigationButtons(nodeInfo) {
 
         navContainer.appendChild(upBtn);
     }
+    function updateNavigationButtons(nodeInfo) {
+        // Clear existing buttons
+        elements.actionButtons.innerHTML = '';
+
+        // Cache the actions for this node if not already cached
+        const nodePath = app.currentPath;
+        if (!app.actionCache[nodePath] && nodeInfo.actions) {
+            app.actionCache[nodePath] = nodeInfo.actions;
+        }
+
+        // Use cached actions to ensure consistency
+        const actions = app.actionCache[nodePath] || nodeInfo.actions || [];
+
+        // Create navigation container for better layout
+        const navContainer = document.createElement('div');
+        navContainer.className = 'nav-buttons-wrapper';
+        navContainer.style.display = 'flex';
+        navContainer.style.flexWrap = 'wrap';
+        navContainer.style.gap = '8px';
+        elements.actionButtons.appendChild(navContainer);
+
+        // Add action buttons
+        if (actions.length > 0) {
+            actions.forEach(action => {
+                const actionType = getActionType(action);
+
+                const actionBtn = document.createElement('button');
+                actionBtn.classList.add('btn', 'action-btn', `action-${actionType}`);
+                actionBtn.textContent = action;
+
+                actionBtn.addEventListener('click', () => {
+                    const newPath = `${app.currentPath}/childrens/${action}`;
+                    navigateToPath(newPath);
+                });
+
+                navContainer.appendChild(actionBtn);
+            });
+        }
+
+        // Add dealcards button and individual card buttons
+        if (nodeInfo.dealcards && nodeInfo.dealcards.length > 0) {
+            // If there are cards, display them directly without requiring an additional click
+            const cardsContainer = document.createElement('div');
+            cardsContainer.className = 'cards-container';
+            cardsContainer.style.display = 'flex';
+            cardsContainer.style.flexWrap = 'wrap';
+            cardsContainer.style.gap = '4px';
+            cardsContainer.style.marginTop = '8px';
+
+            // Add a header for the cards section
+            const cardsHeader = document.createElement('div');
+            cardsHeader.style.width = '100%';
+            cardsHeader.style.fontWeight = 'bold';
+            cardsHeader.style.marginBottom = '4px';
+            cardsHeader.textContent = 'Available Cards:';
+            cardsContainer.appendChild(cardsHeader);
+
+            // Sort cards for better display
+            const sortedCards = [...nodeInfo.dealcards].sort((a, b) => {
+                // Sort by rank first (A, K, Q, J, T, 9, 8, 7, 6, 5, 4, 3, 2)
+                const rankOrder = { 'A': 1, 'K': 2, 'Q': 3, 'J': 4, 'T': 5, '9': 6, '8': 7, '7': 8, '6': 9, '5': 10, '4': 11, '3': 12, '2': 13 };
+                // Then by suit (clubs, diamonds, hearts, spades)
+                const suitOrder = { 'c': 1, 'd': 2, 'h': 3, 's': 4 };
+
+                if (a.length === 2 && b.length === 2) {
+                    // For cards like "Ac", "Kd", etc.
+                    const rankDiff = rankOrder[a[0]] - rankOrder[b[0]];
+                    if (rankDiff !== 0) return rankDiff;
+                    return suitOrder[a[1]] - suitOrder[b[1]];
+                }
+                return a.localeCompare(b);
+            });
+
+            // Display all cards directly in navigation area
+            sortedCards.forEach(card => {
+                const cardBtn = document.createElement('button');
+                cardBtn.classList.add('card');
+
+                // Add suit class if it's a card with suit
+                if (card.length === 2) {
+                    cardBtn.classList.add(`card-${card[1]}`);
+                    cardBtn.innerHTML = `${card[0]}${getSuitSymbol(card[1])}`;
+                } else {
+                    cardBtn.textContent = card;
+                }
+
+                cardBtn.addEventListener('click', () => {
+                    const newPath = `${app.currentPath}/dealcards/${card}`;
+                    navigateToPath(newPath);
+                });
+
+                cardsContainer.appendChild(cardBtn);
+            });
+
+            navContainer.appendChild(cardsContainer);
+
+            // If there are many cards, add a "Show All Cards" button at the top for visibility
+            if (nodeInfo.dealcards.length > 10) {
+                const cardsBtn = document.createElement('button');
+                cardsBtn.classList.add('btn', 'action-btn', 'action-cards');
+                cardsBtn.textContent = `Cards (${nodeInfo.dealcards.length})`;
+                cardsBtn.title = 'See all cards below';
+                cardsBtn.style.position = 'relative';
+
+                // Add scroll indicator
+                const scrollIndicator = document.createElement('span');
+                scrollIndicator.innerHTML = '&#9660;'; // Down arrow
+                scrollIndicator.style.marginLeft = '5px';
+                scrollIndicator.style.fontSize = '10px';
+                cardsBtn.appendChild(scrollIndicator);
+
+                cardsBtn.addEventListener('click', () => {
+                    // Scroll to the cards container
+                    cardsContainer.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                });
+
+                // Insert at beginning
+                navContainer.insertBefore(cardsBtn, navContainer.firstChild);
+            }
+        }
+
+        // Add up button if we're not at the root
+        if (app.currentPath) {
+            const parentPath = app.currentPath.split('/').slice(0, -1).join('/');
+
+            const upBtn = document.createElement('button');
+            upBtn.classList.add('btn', 'action-btn', 'action-up');
+            upBtn.textContent = '↑ Up';
+
+            upBtn.addEventListener('click', () => {
+                navigateToPath(parentPath);
+            });
+
+            // Add at the beginning
+            navContainer.insertBefore(upBtn, navContainer.firstChild);
+        }
+    }
 }
 
 // Update strategy displays
@@ -517,18 +654,27 @@ async function updateStrategyDisplays(path) {
         // Update rough strategy
         strategyView.updateRoughStrategy(strategyInfo, elements.roughStrategyContainer);
 
-        // Get hand matrix data
-        const matrixResponse = await fetch(`/api/hand_matrix/${app.sessionId}?path=${encodeURIComponent(path)}`);
-        if (matrixResponse.ok) {
-            const matrixData = await matrixResponse.json();
-            handMatrix.updateHandMatrix(matrixData, elements.handMatrixGrid, handleHandClick);
+        // Only fetch specific data when the corresponding tab is active or about to be viewed
+        const activeTab = document.querySelector('.tab-btn.active').getAttribute('data-tab');
+
+        // Get hand matrix data only when needed
+        if (activeTab === 'hand-matrix' || app.matrixDataNeedsUpdate) {
+            app.matrixDataNeedsUpdate = false;
+            const matrixResponse = await fetch(`/api/hand_matrix/${app.sessionId}?path=${encodeURIComponent(path)}`);
+            if (matrixResponse.ok) {
+                const matrixData = await matrixResponse.json();
+                handMatrix.updateHandMatrix(matrixData, elements.handMatrixGrid, handleHandClick);
+            }
         }
 
-        // Get EV analysis
-        const evResponse = await fetch(`/api/ev_analysis/${app.sessionId}?path=${encodeURIComponent(path)}`);
-        if (evResponse.ok) {
-            const evData = await evResponse.json();
-            evAnalysis.updateEvAnalysis(evData, elements.evAnalysisContainer);
+        // Get EV analysis only when needed
+        if (activeTab === 'ev-analysis' || app.evDataNeedsUpdate) {
+            app.evDataNeedsUpdate = false;
+            const evResponse = await fetch(`/api/ev_analysis/${app.sessionId}?path=${encodeURIComponent(path)}`);
+            if (evResponse.ok) {
+                const evData = await evResponse.json();
+                evAnalysis.updateEvAnalysis(evData, elements.evAnalysisContainer);
+            }
         }
 
         // Adjust hand matrix size after content is loaded
@@ -537,6 +683,51 @@ async function updateStrategyDisplays(path) {
         console.error('Error updating strategy displays:', error);
         clearStrategyDisplays();
     }
+}
+
+// Initialize tab switching with lazy loading
+function initTabs() {
+    const tabButtons = document.querySelectorAll('.tab-btn');
+    tabButtons.forEach(button => {
+        button.addEventListener('click', () => {
+            const tabId = button.getAttribute('data-tab');
+            const previousTab = document.querySelector('.tab-btn.active').getAttribute('data-tab');
+
+            // Update active tab button
+            tabButtons.forEach(btn => btn.classList.remove('active'));
+            button.classList.add('active');
+
+            // Update active tab content
+            document.querySelectorAll('.tab-content').forEach(tab => {
+                tab.classList.remove('active');
+            });
+            document.getElementById(tabId).classList.add('active');
+
+            // Load data when switching to a tab that needs it
+            if (tabId === 'hand-matrix' && previousTab !== 'hand-matrix' && app.currentPath) {
+                if (!elements.handMatrixGrid.hasChildNodes()) {
+                    fetch(`/api/hand_matrix/${app.sessionId}?path=${encodeURIComponent(app.currentPath)}`)
+                        .then(response => response.json())
+                        .then(matrixData => {
+                            handMatrix.updateHandMatrix(matrixData, elements.handMatrixGrid, handleHandClick);
+                        });
+                }
+            } else if (tabId === 'ev-analysis' && previousTab !== 'ev-analysis' && app.currentPath) {
+                if (!elements.evAnalysisContainer.hasChildNodes()) {
+                    fetch(`/api/ev_analysis/${app.sessionId}?path=${encodeURIComponent(app.currentPath)}`)
+                        .then(response => response.json())
+                        .then(evData => {
+                            evAnalysis.updateEvAnalysis(evData, elements.evAnalysisContainer);
+                        });
+                }
+            }
+
+            // Adjust hand matrix size when that tab is selected
+            if (tabId === 'hand-matrix') {
+                setTimeout(adjustHandMatrixSize, 100);
+            }
+        });
+    });
 }
 
 // Clear strategy displays

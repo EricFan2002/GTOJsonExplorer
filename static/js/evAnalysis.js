@@ -1,4 +1,4 @@
-// EV Analysis Component for Poker GTO Explorer
+// EV Analysis Component for Poker GTO Explorer - Fixed Version
 
 const evAnalysis = {
     // Update the EV analysis display
@@ -10,7 +10,7 @@ const evAnalysis = {
             return;
         }
 
-        // Action Frequencies Chart
+        // Action Frequencies Chart (only shown in EV Analysis tab)
         if (evData.actions && evData.action_frequencies) {
             const chartCard = document.createElement('div');
             chartCard.classList.add('strategy-card');
@@ -64,136 +64,7 @@ const evAnalysis = {
             container.appendChild(chartCard);
         }
 
-        // Hand Composition Card
-        if (evData.hand_composition) {
-            const composition = evData.hand_composition;
-
-            const compositionCard = document.createElement('div');
-            compositionCard.classList.add('strategy-card');
-
-            const compositionTitle = document.createElement('h4');
-            compositionTitle.textContent = 'Hand Composition';
-            compositionCard.appendChild(compositionTitle);
-
-            // Create composition table
-            const tableContainer = document.createElement('table');
-            tableContainer.style.width = '100%';
-            tableContainer.style.borderCollapse = 'collapse';
-
-            // Header row
-            const thead = document.createElement('thead');
-            const headerRow = document.createElement('tr');
-
-            ['Hand Type', 'Count', 'Percentage'].forEach(text => {
-                const th = document.createElement('th');
-                th.textContent = text;
-                th.style.padding = '8px';
-                th.style.textAlign = 'left';
-                th.style.borderBottom = '2px solid #eee';
-                headerRow.appendChild(th);
-            });
-
-            thead.appendChild(headerRow);
-            tableContainer.appendChild(thead);
-
-            // Table body
-            const tbody = document.createElement('tbody');
-
-            // Pairs row
-            const pairsRow = document.createElement('tr');
-
-            const pairsType = document.createElement('td');
-            pairsType.textContent = 'Pairs';
-            pairsType.style.padding = '8px';
-
-            const pairsCount = document.createElement('td');
-            pairsCount.textContent = composition.pairs;
-            pairsCount.style.padding = '8px';
-
-            const pairsPct = document.createElement('td');
-            pairsPct.textContent = composition.total > 0
-                ? ((composition.pairs / composition.total) * 100).toFixed(1) + '%'
-                : '0%';
-            pairsPct.style.padding = '8px';
-
-            pairsRow.appendChild(pairsType);
-            pairsRow.appendChild(pairsCount);
-            pairsRow.appendChild(pairsPct);
-            tbody.appendChild(pairsRow);
-
-            // Suited row
-            const suitedRow = document.createElement('tr');
-            suitedRow.style.backgroundColor = '#f9f9f9';
-
-            const suitedType = document.createElement('td');
-            suitedType.textContent = 'Suited';
-            suitedType.style.padding = '8px';
-
-            const suitedCount = document.createElement('td');
-            suitedCount.textContent = composition.suited;
-            suitedCount.style.padding = '8px';
-
-            const suitedPct = document.createElement('td');
-            suitedPct.textContent = composition.total > 0
-                ? ((composition.suited / composition.total) * 100).toFixed(1) + '%'
-                : '0%';
-            suitedPct.style.padding = '8px';
-
-            suitedRow.appendChild(suitedType);
-            suitedRow.appendChild(suitedCount);
-            suitedRow.appendChild(suitedPct);
-            tbody.appendChild(suitedRow);
-
-            // Offsuit row
-            const offsuitRow = document.createElement('tr');
-
-            const offsuitType = document.createElement('td');
-            offsuitType.textContent = 'Offsuit';
-            offsuitType.style.padding = '8px';
-
-            const offsuitCount = document.createElement('td');
-            offsuitCount.textContent = composition.offsuit;
-            offsuitCount.style.padding = '8px';
-
-            const offsuitPct = document.createElement('td');
-            offsuitPct.textContent = composition.total > 0
-                ? ((composition.offsuit / composition.total) * 100).toFixed(1) + '%'
-                : '0%';
-            offsuitPct.style.padding = '8px';
-
-            offsuitRow.appendChild(offsuitType);
-            offsuitRow.appendChild(offsuitCount);
-            offsuitRow.appendChild(offsuitPct);
-            tbody.appendChild(offsuitRow);
-
-            // Total row
-            const totalRow = document.createElement('tr');
-            totalRow.style.fontWeight = 'bold';
-            totalRow.style.borderTop = '2px solid #eee';
-
-            const totalType = document.createElement('td');
-            totalType.textContent = 'Total';
-            totalType.style.padding = '8px';
-
-            const totalCount = document.createElement('td');
-            totalCount.textContent = composition.total;
-            totalCount.style.padding = '8px';
-
-            const totalPct = document.createElement('td');
-            totalPct.textContent = '100%';
-            totalPct.style.padding = '8px';
-
-            totalRow.appendChild(totalType);
-            totalRow.appendChild(totalCount);
-            totalRow.appendChild(totalPct);
-            tbody.appendChild(totalRow);
-
-            tableContainer.appendChild(tbody);
-            compositionCard.appendChild(tableContainer);
-            container.appendChild(compositionCard);
-        }
-
-        // Strategy Tips Card
+        // EV Analysis-specific content - avoid duplicating what's in other tabs
         if (evData.tips && evData.tips.length > 0) {
             const tipsCard = document.createElement('div');
             tipsCard.classList.add('strategy-card');
@@ -216,10 +87,11 @@ const evAnalysis = {
             container.appendChild(tipsCard);
         }
 
-        // Board Analysis Card
-        if (evData.board_analysis && evData.board_analysis.length > 0) {
+        // Only include board analysis here if it hasn't been shown elsewhere
+        if (evData.board_analysis && evData.board_analysis.length > 0 && !document.querySelector('[data-board-analysis="true"]')) {
             const boardCard = document.createElement('div');
             boardCard.classList.add('strategy-card');
+            boardCard.dataset.boardAnalysis = "true"; // Mark as shown
 
             const boardTitle = document.createElement('h4');
             boardTitle.textContent = 'Board Analysis';

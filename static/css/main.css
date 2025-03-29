@@ -815,3 +815,187 @@ body {
         font-size: 10px;
     }
 }
+
+/* Additional styles for the improved tree view */
+
+.tree-controls {
+    margin-bottom: 8px;
+    padding: 4px;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.load-more-btn {
+    color: var(--primary-color);
+    cursor: pointer;
+    padding: 2px 4px;
+    border-radius: 3px;
+    font-size: 12px;
+}
+
+.load-more-btn:hover {
+    background-color: #f0f0f0;
+    text-decoration: underline;
+}
+
+.loading-placeholder {
+    font-style: italic;
+    color: #666;
+    padding: 2px 0;
+}
+
+/* Tree view performance improvements */
+.tree-container {
+    contain: content;
+}
+
+.tree-item {
+    contain: content;
+}
+
+/* Add a subtle animation for toggle */
+.tree-toggle {
+    transition: transform 0.2s ease;
+}
+
+.tree-children {
+    overflow: hidden;
+    max-height: 0;
+    transition: max-height 0.3s ease-out;
+}
+
+.tree-children:not(.collapsed) {
+    max-height: 9999px;
+    /* Large enough to show all content */
+    transition: max-height 0.5s ease-in;
+}
+
+/* Improved Tree View Styling - Removes Placeholders */
+
+/* Tight tree layout without extra spaces */
+.tree-view {
+    list-style-type: none;
+    padding-left: var(--spacing-sm);
+    margin: 0;
+}
+
+.tree-view li {
+    margin: 0;
+    padding: 0;
+}
+
+/* Improved toggle button */
+.tree-toggle {
+    margin-right: var(--spacing-xs);
+    width: 16px;
+    height: 16px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: transform 0.2s;
+}
+
+/* Make sure the children container has no extra margin */
+.tree-children {
+    list-style-type: none;
+    padding-left: var(--spacing-md);
+    margin: 0;
+    overflow: hidden;
+    transition: max-height 0.2s ease-out;
+    max-height: 0;
+}
+
+.tree-children:not(.collapsed) {
+    max-height: 5000px;
+    /* Large enough to contain all children */
+    transition: max-height 0.3s ease-in;
+}
+
+/* Improved tree items for better alignment */
+.tree-item {
+    display: flex;
+    align-items: center;
+    cursor: pointer;
+    padding: var(--spacing-xs) var(--spacing-sm);
+    border-radius: 4px;
+    transition: background-color 0.1s;
+    white-space: nowrap;
+    margin: 0;
+}
+
+.tree-item:hover {
+    background-color: #f0f0f0;
+}
+
+.tree-item.selected {
+    background-color: var(--primary-color);
+    color: white;
+}
+
+/* Error styling */
+.tree-error {
+    margin: 5px 0;
+    padding: 5px;
+    border-radius: 4px;
+    background-color: #fff8f8;
+    border: 1px solid #f8d7da;
+    font-size: 12px;
+}
+
+.load-more-btn {
+    color: var(--primary-color);
+    cursor: pointer;
+    text-decoration: underline;
+    padding: 2px 0;
+    font-size: 12px;
+}
+
+/* Better visual cues for different node types */
+.tree-node-action {
+    display: inline-flex;
+    align-items: center;
+    padding: var(--spacing-xs) var(--spacing-sm);
+    border-radius: 4px;
+    margin-left: var(--spacing-xs);
+    font-weight: bold;
+    min-width: 50px;
+    justify-content: center;
+}
+
+.action-node-check {
+    background-color: var(--check-color);
+    color: black;
+}
+
+.action-node-call {
+    background-color: var(--call-color);
+    color: white;
+}
+
+.action-node-bet,
+.action-node-raise {
+    background-color: var(--bet-color);
+    color: black;
+}
+
+.action-node-fold {
+    background-color: var(--fold-color);
+    color: black;
+}
+
+.tree-node-cards {
+    background-color: #ffd700;
+    font-weight: bold;
+    padding: var(--spacing-xs) var(--spacing-sm);
+    border-radius: 4px;
+    margin-left: var(--spacing-xs);
+}
+
+.tree-node-card {
+    background-color: white;
+    font-weight: bold;
+    border: 1px solid #ccc;
+    padding: var(--spacing-xs) var(--spacing-sm);
+    border-radius: 4px;
+    margin-left: var(--spacing-xs);
+}
