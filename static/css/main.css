@@ -69,19 +69,19 @@ body {
     flex-direction: column;
     height: 100vh;
     width: 100%;
-    overflow: hidden;
+    overflow: none;
 }
 
 .main-content {
     flex: 1;
-    overflow: hidden;
+    overflow: none;
     display: flex;
     flex-direction: column;
 }
 
 .content-view {
     flex: 1;
-    overflow: hidden;
+    overflow: none;
     display: flex;
     flex-direction: column;
 }
@@ -427,7 +427,8 @@ body {
 .split-view {
     display: flex;
     flex: 1;
-    overflow: hidden;
+    /* overflow: hidden; */
+    overflow: auto;
     height: calc(100vh - 119px);
     /* Adjust for header and status bar heights */
 }
@@ -435,7 +436,7 @@ body {
 .left-panel {
     width: 300px;
     height: 100%;
-    overflow: hidden;
+    overflow: auto;
     display: flex;
     flex-direction: column;
     border-right: 1px solid var(--border-color);
@@ -507,6 +508,7 @@ body {
     list-style-type: none;
     padding-left: var(--spacing-sm);
     margin: 0;
+    min-width: max-content;
 }
 
 .tree-view:after {
@@ -1044,6 +1046,11 @@ body {
 .tabs-content::-webkit-scrollbar {
     width: 8px;
     height: 8px;
+}
+
+.tree-container {
+    overflow-x: scroll;
+    overflow-y: scroll;
 }
 
 .tree-container::-webkit-scrollbar-thumb,
