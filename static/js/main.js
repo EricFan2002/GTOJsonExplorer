@@ -648,7 +648,7 @@ async function handleHandClick(hand) {
 
         const handData = await response.json();
 
-        // Update hand details display
+        // Update hand details display with enhanced styling
         handMatrix.displayHandDetails(handData, elements.handDetailsContent);
 
         setStatus(`Selected hand: ${hand}`);
@@ -657,6 +657,7 @@ async function handleHandClick(hand) {
         elements.handDetailsContent.innerHTML = `<p>Error: ${error.message}</p>`;
     }
 }
+
 
 // ================ TABS MANAGEMENT ================
 // Initialize tab switching
@@ -686,6 +687,9 @@ function initTabs() {
                             handMatrix.updateHandMatrix(matrixData, elements.handMatrixGrid, handleHandClick);
                         });
                 }
+
+                // Always adjust matrix size when switching to this tab
+                setTimeout(adjustHandMatrixSize, 100);
             } else if (tabId === 'ev-analysis' && previousTab !== 'ev-analysis' && app.currentPath) {
                 if (!elements.evAnalysisContainer.hasChildNodes()) {
                     fetch(`/api/ev_analysis/${app.sessionId}?path=${encodeURIComponent(app.currentPath)}`)
@@ -695,14 +699,10 @@ function initTabs() {
                         });
                 }
             }
-
-            // Adjust hand matrix size when that tab is selected
-            if (tabId === 'hand-matrix') {
-                setTimeout(adjustHandMatrixSize, 100);
-            }
         });
     });
 }
+
 
 // ================ CARDS MANAGEMENT ================
 // Function to collapse Cards nodes with respect for manual interaction
@@ -825,23 +825,48 @@ function fixTreeContainerScrolling() {
 
 // Adjust the hand matrix height based on window size
 function adjustHandMatrixSize() {
-    const handMatrix = document.querySelector('.hand-matrix-container');
-    if (handMatrix) {
-        const windowHeight = window.innerHeight;
-        const headerHeight = document.querySelector('.app-header')?.offsetHeight || 0;
-        const breadcrumbHeight = document.querySelector('.breadcrumb-container')?.offsetHeight || 0;
-        const infoHeight = document.querySelector('.strategy-info-panel')?.offsetHeight || 0;
-        const tabsHeaderHeight = document.querySelector('.tabs-header')?.offsetHeight || 0;
-        const statusHeight = document.querySelector('.status-bar')?.offsetHeight || 0;
+    const handMatrixContainer = document.querySelector('.hand-matrix-container');
+    const handMatrixGrid = document.getElementById('hand-matrix-grid');
+    const handDetails = document.getElementById('hand-details');
 
-        // Calculate available height for hand matrix
-        const availableHeight = windowHeight - headerHeight - breadcrumbHeight - infoHeight - tabsHeaderHeight - statusHeight - 60; // 60px for margins/padding
+    if (!handMatrixContainer || !handMatrixGrid) return;
 
-        // Set minimum height
-        handMatrix.style.maxHeight = Math.max(availableHeight, 400) + 'px';
-        handMatrix.style.overflowY = 'auto';
+    // Get relevant dimensions
+    const windowHeight = window.innerHeight;
+    const windowWidth = window.innerWidth;
+    const headerHeight = document.querySelector('.app-header')?.offsetHeight || 0;
+    const breadcrumbHeight = document.querySelector('.breadcrumb-container')?.offsetHeight || 0;
+    const infoHeight = document.querySelector('.strategy-info-panel')?.offsetHeight || 0;
+    const tabsHeaderHeight = document.querySelector('.tabs-header')?.offsetHeight || 0;
+    const statusHeight = document.querySelector('.status-bar')?.offsetHeight || 0;
+
+    // Calculate available height for container
+    const availableHeight = windowHeight - headerHeight - breadcrumbHeight - infoHeight - tabsHeaderHeight - statusHeight - 20; // 20px buffer
+
+    // Set container height
+    handMatrixContainer.style.height = `${Math.max(availableHeight, 500)}px`;
+
+    // Check if we're in responsive mode (stacked layout)
+    const isStacked = windowWidth <= 1200;
+
+    if (isStacked) {
+        // In stacked layout, divide the space between grid and details
+        handMatrixGrid.style.height = `${Math.floor(availableHeight * 0.6)}px`;
+        if (handDetails) {
+            handDetails.style.height = `${Math.floor(availableHeight * 0.4)}px`;
+        }
+    } else {
+        // In side-by-side layout, both columns use full height
+        handMatrixGrid.style.height = '100%';
+        if (handDetails) {
+            handDetails.style.height = '100%';
+        }
     }
+
+    // Make sure matrix cells are properly sized
+    handMatrix.adjustCellSizes(handMatrixGrid);
 }
+
 
 // Fix right panel scrolling when tree is scrolled
 function fixSplitViewScrolling() {
@@ -893,7 +918,11 @@ function adjustPanelHeights() {
         const availableTabsHeight = availableHeight - infoPanelHeight - navHeight - 40; // 40px for margins
         tabsContainer.style.maxHeight = `${availableTabsHeight}px`;
     }
+
+    // Adjust matrix layout if it's visible
+    adjustHandMatrixSize();
 }
+
 
 // ================ UTILITY FUNCTIONS ================
 // Helper function to determine action type
@@ -1018,6 +1047,7 @@ function setupEventListeners() {
         }
     });
 }
+
 
 // ================ INITIALIZATION ================
 // Initialize app

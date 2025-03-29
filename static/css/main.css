@@ -490,10 +490,11 @@ body {
 .tree-container {
     flex: 1;
     overflow-y: auto;
-    overflow-x: hidden;
+    overflow-x: auto;
     overscroll-behavior: contain;
     padding: var(--spacing-sm);
     padding-bottom: 100px;
+    padding-right: 20px;
 }
 
 .tree-controls {
@@ -528,6 +529,7 @@ body {
     transition: background-color 0.1s;
     white-space: nowrap;
     margin: 0;
+    min-width: max-content;
 }
 
 .tree-item:hover {
@@ -703,20 +705,66 @@ body {
 }
 
 /* ================ Hand Matrix ================ */
+/* MODIFIED: Two-column layout for hand matrix */
 .hand-matrix-container {
     display: flex;
     flex-direction: column;
     height: 100%;
+    width: 100%;
+    overflow: hidden;
+}
+
+/* New two-column layout */
+.matrix-layout {
+    display: flex;
+    flex-direction: row;
+    width: 100%;
+    height: 100%;
     gap: var(--spacing-md);
 }
 
+.matrix-column {
+    flex: 1;
+    min-width: 0;
+    /* Prevent flex items from overflowing */
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+}
+
+/* Left column gets slightly more space */
+.matrix-column:first-child {
+    flex: 1.2;
+}
+
+/* Make matrix grid use all available space */
 #hand-matrix-grid {
     display: grid;
     grid-template-columns: 30px repeat(13, 1fr);
     grid-template-rows: 30px repeat(13, 1fr);
     gap: 2px;
     overflow: auto;
-    max-height: 600px;
+    height: 100%;
+    min-height: 400px;
+    background-color: var(--panel-bg-color);
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    padding: var(--spacing-xs);
+}
+
+/* Make hand details panel use all available height */
+#hand-details {
+    height: 100%;
+    overflow: auto;
+    display: flex;
+    flex-direction: column;
+    margin: 0;
+}
+
+#hand-details-content {
+    flex: 1;
+    overflow: auto;
+    padding: var(--spacing-sm);
 }
 
 .matrix-cell {
@@ -731,12 +779,47 @@ body {
     font-size: 12px;
     text-align: center;
     cursor: pointer;
-    transition: background-color 0.2s;
+    transition: background-color 0.2s, transform 0.2s, box-shadow 0.2s;
     overflow: hidden;
 }
 
 .matrix-cell:hover {
     border-color: #999;
+    transform: scale(1.05);
+    box-shadow: var(--shadow-sm);
+    z-index: 2;
+}
+
+/* Selected cell state */
+.matrix-cell.selected {
+    border: 2px solid var(--primary-color);
+    box-shadow: 0 0 8px rgba(52, 152, 219, 0.5);
+    z-index: 3;
+}
+
+.matrix-cell .cell-content {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    height: 100%;
+    padding: 2px;
+}
+
+.matrix-cell .hand-text {
+    font-weight: bold;
+    margin-bottom: 2px;
+    font-size: 110%;
+}
+
+.matrix-cell .action-primary {
+    font-weight: bold;
+    font-size: 90%;
+}
+
+.matrix-cell .action-secondary {
+    font-size: 80%;
 }
 
 .matrix-cell.suited {
@@ -762,44 +845,73 @@ body {
     border-radius: 4px;
 }
 
-#hand-details {
-    overflow: auto;
-    max-height: 400px;
-}
-
-#hand-details-content {
-    display: grid;
-    grid-template-columns: auto repeat(3, 1fr);
-    gap: var(--spacing-xs);
-    padding: var(--spacing-sm);
-}
-
+/* Enhanced hand details styling */
 .hand-details-header {
+    background-color: #f5f5f5;
+    padding: 12px;
+    border-radius: 6px;
+    margin-bottom: 15px;
+    text-align: center;
     font-weight: bold;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.hand-details-table {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0 3px;
+    margin: 10px 0;
+}
+
+.hand-details-table th {
+    padding: 10px;
     background-color: #f0f0f0;
-    padding: var(--spacing-xs);
-    border-radius: 4px;
     text-align: center;
 }
 
-.hand-details-cell {
-    padding: var(--spacing-xs);
-    border-radius: 4px;
+.hand-details-table th:first-child {
+    border-top-left-radius: 6px;
+    border-bottom-left-radius: 6px;
+    text-align: left;
+}
+
+.hand-details-table th:last-child {
+    border-top-right-radius: 6px;
+    border-bottom-right-radius: 6px;
+}
+
+.hand-details-table td {
+    padding: 12px;
     text-align: center;
 }
 
-.hand-details-high {
-    background-color: var(--success-color);
+.hand-details-table td:first-child {
+    font-weight: bold;
+    text-align: left;
+}
+
+.hand-details-avg-row {
+    font-weight: bold;
+    background-color: #34495e;
     color: white;
 }
 
-.hand-details-medium {
-    background-color: var(--warning-color);
+.hand-details-avg-row td:first-child {
+    border-top-left-radius: 6px;
+    border-bottom-left-radius: 6px;
 }
 
-.hand-details-low {
-    background-color: var(--danger-color);
-    color: white;
+.hand-details-avg-row td:last-child {
+    border-top-right-radius: 6px;
+    border-bottom-right-radius: 6px;
+}
+
+.hand-details-info {
+    padding: 10px;
+    color: #777;
+    background-color: #f8f9fa;
+    border-radius: 6px;
+    margin-top: 15px;
 }
 
 /* ================ Strategy Views ================ */
@@ -948,6 +1060,27 @@ body {
 }
 
 /* ================ Responsive Adaptations ================ */
+@media (max-width: 1200px) {
+
+    /* Convert two-column layout to stacked on smaller screens */
+    .matrix-layout {
+        flex-direction: column;
+    }
+
+    .matrix-column {
+        height: auto;
+    }
+
+    #hand-matrix-grid {
+        height: 400px;
+    }
+
+    #hand-details {
+        height: 350px;
+        margin-top: var(--spacing-md);
+    }
+}
+
 @media (max-width: 768px) {
     .split-view {
         flex-direction: column;

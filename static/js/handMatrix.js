@@ -1,4 +1,4 @@
-// Hand Matrix Component for Poker GTO Explorer - Fixed Version
+// Hand Matrix Component for Poker GTO Explorer - Modified Version
 
 const handMatrix = {
     // Update the hand matrix display
@@ -42,106 +42,7 @@ const handMatrix = {
                     cell.row === rowIndex && cell.col === colIndex);
 
                 if (cellData) {
-                    const cell = document.createElement('div');
-                    cell.classList.add('matrix-cell');
-
-                    // Add type class (pair, suited, offsuit)
-                    if (cellData.type) {
-                        cell.classList.add(cellData.type);
-                    }
-
-                    // Create content container for better layout control
-                    const contentContainer = document.createElement('div');
-                    contentContainer.className = 'cell-content';
-                    contentContainer.style.display = 'flex';
-                    contentContainer.style.flexDirection = 'column';
-                    contentContainer.style.alignItems = 'center';
-                    contentContainer.style.justifyContent = 'center';
-                    contentContainer.style.height = '100%';
-                    contentContainer.style.width = '100%';
-                    contentContainer.style.overflow = 'hidden';
-
-                    // Set the hand text
-                    const handText = document.createElement('div');
-                    handText.className = 'hand-text';
-                    handText.textContent = cellData.hand;
-                    handText.style.fontWeight = 'bold';
-                    handText.style.marginBottom = '2px';
-                    contentContainer.appendChild(handText);
-
-                    // Add action styling if there's strategy data
-                    if (cellData.action !== 'none') {
-                        // Get color based on action and probability
-                        const actionType = this.getActionType(cellData.action);
-                        const actionColor = this.getActionColor(actionType);
-                        const opacity = 0.7 + (cellData.probability / 100 * 0.3);
-
-                        // Set background with opacity
-                        const rgba = this.hexToRgba(actionColor, opacity);
-                        cell.style.backgroundColor = rgba;
-
-                        // Set text color based on action
-                        if (actionType === 'call' && cellData.probability > 50) {
-                            handText.style.color = 'white';
-                        }
-
-                        // Add the dominant action
-                        if (cellData.probability > 0) {
-                            const actionLine = document.createElement('div');
-                            actionLine.className = 'action-line';
-                            actionLine.textContent = `${this.abbreviateAction(cellData.action)}: ${cellData.probability}%`;
-                            actionLine.style.fontSize = '0.8em';
-                            actionLine.style.fontWeight = 'bold';
-                            actionLine.style.marginBottom = '2px';
-                            contentContainer.appendChild(actionLine);
-
-                            if (actionType === 'call' && cellData.probability > 50) {
-                                actionLine.style.color = 'white';
-                            }
-                        }
-
-                        // Find second most likely action if significant
-                        const probs = cellData.probabilities || [];
-                        if (probs.length > 1) {
-                            // Sort probabilities
-                            const sortedProbs = [...probs].map((p, i) => ({
-                                value: p,
-                                action: matrixData.actions[i]
-                            })).sort((a, b) => b.value - a.value);
-
-                            // If second action is significant, add it
-                            if (sortedProbs.length > 1 && sortedProbs[1].value > 5) {
-                                const secondLine = document.createElement('div');
-                                secondLine.className = 'second-action';
-                                secondLine.textContent = `${this.abbreviateAction(sortedProbs[1].action)}: ${sortedProbs[1].value}%`;
-                                secondLine.style.fontSize = '0.75em';
-                                contentContainer.appendChild(secondLine);
-
-                                if (actionType === 'call' && cellData.probability > 50) {
-                                    secondLine.style.color = 'white';
-                                }
-                            }
-                        }
-
-                        // Add tooltip with all probabilities
-                        if (probs.length > 0) {
-                            const tooltip = matrixData.actions.map((action, i) =>
-                                `${action}: ${probs[i]}%`
-                            ).join('\n');
-
-                            cell.title = tooltip;
-                        }
-                    }
-
-                    cell.appendChild(contentContainer);
-
-                    // Add click handler
-                    cell.addEventListener('click', () => {
-                        if (clickHandler) {
-                            clickHandler(cellData.hand);
-                        }
-                    });
-
+                    const cell = this.createCellElement(cellData, matrixData, clickHandler);
                     container.appendChild(cell);
                 } else {
                     // Empty cell as fallback
@@ -161,14 +62,117 @@ const handMatrix = {
         }, 100));
     },
 
+    // Create a cell element with enhanced styling and information
+    createCellElement(cellData, matrixData, clickHandler) {
+        const cell = document.createElement('div');
+        cell.classList.add('matrix-cell');
+
+        // Add type class (pair, suited, offsuit)
+        if (cellData.type) {
+            cell.classList.add(cellData.type);
+        }
+
+        // Create better structured content layout
+        const contentContainer = document.createElement('div');
+        contentContainer.className = 'cell-content';
+
+        // Hand text (bigger and more prominent)
+        const handText = document.createElement('div');
+        handText.className = 'hand-text';
+        handText.textContent = cellData.hand;
+        contentContainer.appendChild(handText);
+
+        // Action styling
+        if (cellData.action !== 'none') {
+            // Get color based on action and probability
+            const actionType = this.getActionType(cellData.action);
+            const actionColor = this.getActionColor(actionType);
+            const opacity = Math.min(0.7 + (cellData.probability / 100 * 0.3), 0.95);
+
+            // Set background with opacity
+            cell.style.backgroundColor = this.hexToRgba(actionColor, opacity);
+
+            // Set border to emphasize the cell
+            cell.style.border = `2px solid ${actionColor}`;
+
+            // Add the primary action with probability
+            if (cellData.probability > 0) {
+                const actionLine = document.createElement('div');
+                actionLine.className = 'action-primary';
+                actionLine.textContent = `${this.abbreviateAction(cellData.action)}: ${cellData.probability}%`;
+                contentContainer.appendChild(actionLine);
+
+                // Set text color for better contrast
+                if (actionType === 'call' || actionType === 'fold' || cellData.probability > 70) {
+                    handText.style.color = 'white';
+                    actionLine.style.color = 'white';
+                }
+            }
+
+            // Find secondary action if significant
+            const probs = cellData.probabilities || [];
+            if (probs.length > 1) {
+                // Sort probabilities
+                const sortedProbs = [...probs].map((p, i) => ({
+                    value: p,
+                    action: matrixData.actions[i]
+                })).sort((a, b) => b.value - a.value);
+
+                // If second action is significant, add it
+                if (sortedProbs.length > 1 && sortedProbs[1].value > 5) {
+                    const secondLine = document.createElement('div');
+                    secondLine.className = 'action-secondary';
+                    secondLine.textContent = `${this.abbreviateAction(sortedProbs[1].action)}: ${sortedProbs[1].value}%`;
+                    contentContainer.appendChild(secondLine);
+
+                    if (actionType === 'call' || actionType === 'fold' || cellData.probability > 70) {
+                        secondLine.style.color = 'white';
+                    }
+                }
+            }
+
+            // Add tooltip with all probabilities
+            if (probs.length > 0) {
+                const tooltip = matrixData.actions.map((action, i) =>
+                    `${action}: ${probs[i]}%`
+                ).join('\n');
+
+                cell.title = tooltip;
+            }
+        }
+
+        cell.appendChild(contentContainer);
+
+        // Add click handler
+        cell.addEventListener('click', () => {
+            if (clickHandler) {
+                clickHandler(cellData.hand);
+
+                // Highlight selected cell
+                document.querySelectorAll('.matrix-cell.selected').forEach(el => {
+                    el.classList.remove('selected');
+                });
+                cell.classList.add('selected');
+            }
+        });
+
+        return cell;
+    },
+
     // Adjust cell sizes to ensure they're square and properly displayed
     adjustCellSizes(container) {
         if (!container) return;
 
-        // Calculate ideal cell size based on container width
+        // Calculate ideal cell size based on container width and height
         const containerWidth = container.clientWidth;
+        const containerHeight = container.clientHeight;
         const columns = 14; // 13 rank columns + 1 header column
-        const cellSize = Math.floor((containerWidth / columns) - 2); // 2px for gap
+        const rows = 14; // 13 rank rows + 1 header row
+
+        // Calculate cell size based on the smaller dimension to ensure squares
+        const maxCellWidth = Math.floor((containerWidth / columns) - 2); // 2px for gap
+        const maxCellHeight = Math.floor((containerHeight / rows) - 2); // 2px for gap
+        const cellSize = Math.min(maxCellWidth, maxCellHeight);
 
         // Apply size to cells
         const cells = container.querySelectorAll('.matrix-cell, .matrix-header');
@@ -179,7 +183,7 @@ const handMatrix = {
         });
     },
 
-    // Display hand details
+    // Display hand details with enhanced formatting
     displayHandDetails(handData, container) {
         container.innerHTML = '';
 
@@ -188,52 +192,41 @@ const handMatrix = {
             return;
         }
 
-        // Create details container with responsive design
-        const detailsContainer = document.createElement('div');
-        detailsContainer.className = 'details-container';
-        detailsContainer.style.width = '100%';
-        detailsContainer.style.overflow = 'auto';
+        // Create enhanced header for the hand
+        const header = document.createElement('div');
+        header.className = 'hand-details-header';
+        header.innerHTML = `<h4>Hand Details: ${handData.hand}</h4>`;
+        container.appendChild(header);
 
-        // Create header row
-        const headerRow = document.createElement('div');
-        headerRow.style.fontWeight = 'bold';
-        headerRow.style.textAlign = 'center';
-        headerRow.style.marginBottom = '8px';
-        headerRow.style.padding = '4px';
-        headerRow.style.backgroundColor = '#f0f0f0';
-        headerRow.style.borderRadius = '4px';
-        headerRow.textContent = `Hand Details: ${handData.hand}`;
-        detailsContainer.appendChild(headerRow);
+        // Create table with better styling
+        const tableWrapper = document.createElement('div');
+        tableWrapper.style.overflowX = 'auto';
+        tableWrapper.style.marginBottom = '15px';
 
-        // Create details table with proper styling
         const table = document.createElement('table');
-        table.style.width = '100%';
-        table.style.borderCollapse = 'collapse';
+        table.className = 'hand-details-table';
 
         // Create header row
         const thead = document.createElement('thead');
         const headerTr = document.createElement('tr');
 
-        // Hand header
+        // Card combo header
         const handTh = document.createElement('th');
-        handTh.textContent = 'Hand';
-        handTh.style.padding = '4px';
-        handTh.style.backgroundColor = '#f0f0f0';
-        handTh.style.border = '1px solid #ddd';
+        handTh.textContent = 'Combo';
+        handTh.style.width = '60px';
         headerTr.appendChild(handTh);
+
 
         // Action headers
         handData.actions.forEach(action => {
             const actionTh = document.createElement('th');
             actionTh.textContent = action;
-            actionTh.style.padding = '4px';
             actionTh.style.backgroundColor = this.getActionColor(this.getActionType(action));
 
             if (this.getActionType(action) === 'call') {
                 actionTh.style.color = 'white';
             }
 
-            actionTh.style.border = '1px solid #ddd';
             headerTr.appendChild(actionTh);
         });
 
@@ -243,27 +236,22 @@ const handMatrix = {
         // Create table body
         const tbody = document.createElement('tbody');
 
-        // Add each combination
+        // Add each combination with improved styling
         handData.combinations.forEach((combo, index) => {
             const row = document.createElement('tr');
             row.style.backgroundColor = index % 2 === 0 ? '#f9f9f9' : 'white';
 
-            // Hand cell
+            // Hand cell with card symbols
             const handCell = document.createElement('td');
-            handCell.textContent = combo.hand;
-            handCell.style.padding = '4px';
-            handCell.style.border = '1px solid #ddd';
+            handCell.innerHTML = this.formatCardSymbols(combo.hand);
             row.appendChild(handCell);
 
-            // Probability cells
+            // Probability cells with better visualization
             combo.probabilities.forEach(prob => {
                 const probCell = document.createElement('td');
                 probCell.textContent = `${prob}%`;
-                probCell.style.padding = '4px';
-                probCell.style.border = '1px solid #ddd';
-                probCell.style.textAlign = 'center';
 
-                // Style based on probability value
+                // Add color based on probability value
                 if (prob > 70) {
                     probCell.style.backgroundColor = this.getActionColor('check'); // Green
                     probCell.style.color = 'white';
@@ -280,56 +268,46 @@ const handMatrix = {
             tbody.appendChild(row);
         });
 
-        // Add average row
+        // Add average row with special styling
         const avgRow = document.createElement('tr');
-        avgRow.style.fontWeight = 'bold';
-        avgRow.style.backgroundColor = '#e0e0e0';
+        avgRow.className = 'hand-details-avg-row';
 
         // Average label
         const avgLabel = document.createElement('td');
         avgLabel.textContent = 'Average';
-        avgLabel.style.padding = '4px';
-        avgLabel.style.border = '1px solid #ddd';
         avgRow.appendChild(avgLabel);
 
         // Average values
         handData.average_probabilities.forEach(prob => {
             const avgCell = document.createElement('td');
             avgCell.textContent = `${prob}%`;
-            avgCell.style.padding = '4px';
-            avgCell.style.border = '1px solid #ddd';
-            avgCell.style.textAlign = 'center';
-
-            // Style based on probability value
-            if (prob > 70) {
-                avgCell.style.backgroundColor = this.getActionColor('check'); // Green
-                avgCell.style.color = 'white';
-            } else if (prob > 30) {
-                avgCell.style.backgroundColor = this.getActionColor('bet'); // Orange
-            } else if (prob > 0) {
-                avgCell.style.backgroundColor = this.getActionColor('fold'); // Red
-                avgCell.style.color = 'white';
-            }
-
             avgRow.appendChild(avgCell);
         });
 
         tbody.appendChild(avgRow);
         table.appendChild(tbody);
-        detailsContainer.appendChild(table);
+        tableWrapper.appendChild(table);
+        container.appendChild(tableWrapper);
 
         // Add info about combinations
         if (handData.combinations.length < handData.expected_combos) {
             const infoRow = document.createElement('div');
-            infoRow.style.fontStyle = 'italic';
-            infoRow.style.color = '#777';
-            infoRow.style.marginTop = '8px';
-            infoRow.style.padding = '4px';
-            infoRow.textContent = `Note: Only ${handData.combinations.length} of ${handData.expected_combos} possible combinations found in data.`;
-            detailsContainer.appendChild(infoRow);
+            infoRow.className = 'hand-details-info';
+            infoRow.innerHTML = `<i class="fas fa-info-circle"></i> Note: Only ${handData.combinations.length} of ${handData.expected_combos} possible combinations found in data.`;
+            container.appendChild(infoRow);
         }
+    },
 
-        container.appendChild(detailsContainer);
+    // Format cards with colored suit symbols
+    formatCardSymbols(handText) {
+        if (!handText) return handText;
+
+        // Replace suit symbols with colored versions
+        return handText
+            .replace(/♣/g, '<span style="color:#27ae60;">♣</span>')
+            .replace(/♦/g, '<span style="color:#3498db;">♦</span>')
+            .replace(/♥/g, '<span style="color:#e74c3c;">♥</span>')
+            .replace(/♠/g, '<span style="color:#2c3e50;">♠</span>');
     },
 
     // Helper function to get action type
