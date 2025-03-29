@@ -6,11 +6,18 @@ Poker GTO Explorer is a web application built with Flask for visualizing and ana
 
 
 # Clone the repository
+
+```bash
 git clone [<repository-url>](https://github.com/EricFan2002/GTOJsonExplorer)
+
 cd GTOJsonExplorer
+```
 
 # Run the Flask application
+
+```bash
 flask run
+```
 
 Open your browser and go to http://127.0.0.1:5100 to access the application.
 
