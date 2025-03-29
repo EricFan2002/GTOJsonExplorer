@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Poker Solver GTO Explorer</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <link rel="stylesheet" href="/css/main.css">
+</head>
+
+<body>
+    <div class="app-container">
+        <!-- Header -->
+        <header class="app-header">
+            <div class="header-left">
+                <h1>Poker GTO Explorer</h1>
+            </div>
+            <div class="header-center">
+                <span id="file-info">No file loaded</span>
+            </div>
+            <div class="header-right">
+                <button id="upload-btn" class="btn btn-primary">
+                    <i class="fas fa-file-upload"></i> Load Solver JSON
+                </button>
+                <button id="home-btn" class="btn btn-secondary" disabled>
+                    <i class="fas fa-home"></i> Home
+                </button>
+            </div>
+        </header>
+
+        <!-- Main Content Container -->
+        <main class="main-content">
+            <!-- Content Stack - Switching between main view and root node view -->
+            <div id="content-stack">
+                <!-- Loading Message -->
+                <div id="loading-view" class="content-view">
+                    <div class="loading-container">
+                        <h2>Welcome to Poker GTO Explorer</h2>
+                        <p>Upload a solver JSON file to get started.</p>
+                        <button id="welcome-upload-btn" class="btn btn-lg btn-primary">
+                            <i class="fas fa-file-upload"></i> Load Solver JSON
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Root Node View -->
+                <div id="root-node-view" class="content-view hidden">
+                    <div class="root-node-container">
+                        <h2>Poker Strategy Explorer</h2>
+                        <div class="game-info-panel panel">
+                            <h3>Game Information</h3>
+                            <div id="game-info-content"></div>
+                        </div>
+                        <div class="starting-actions-panel panel">
+                            <h3>Available Starting Actions</h3>
+                            <div id="starting-actions-container"></div>
+                        </div>
+                        <button id="start-exploring-btn" class="btn btn-success">
+                            <i class="fas fa-play"></i> Start Exploring
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Main Explorer View -->
+                <div id="explorer-view" class="content-view hidden">
+                    <!-- Breadcrumb Navigation -->
+                    <div class="breadcrumb-container" id="breadcrumb-nav"></div>
+
+                    <!-- Split View Container -->
+                    <div class="split-view">
+                        <!-- Left Panel (Tree View) -->
+                        <div class="panel left-panel">
+                            <h3>Game Tree</h3>
+                            <div class="tree-container">
+                                <ul id="game-tree" class="tree-view"></ul>
+                            </div>
+                        </div>
+
+                        <!-- Right Panel (Content) -->
+                        <div class="panel right-panel">
+                            <!-- Strategy Info -->
+                            <div class="strategy-info-panel panel">
+                                <h3 id="node-title">Strategy Information</h3>
+                                <div id="node-info-container"></div>
+
+                                <!-- Navigation Buttons -->
+                                <div class="nav-buttons-container">
+                                    <label>Navigate:</label>
+                                    <div id="action-buttons" class="action-buttons"></div>
+                                </div>
+                            </div>
+
+                            <!-- Tabs Container -->
+                            <div class="tabs-container">
+                                <div class="tabs-header">
+                                    <button class="tab-btn active" data-tab="rough-strategy">Rough Strategy</button>
+                                    <button class="tab-btn" data-tab="hand-matrix">Hand Matrix</button>
+                                    <button class="tab-btn" data-tab="ev-analysis">EV Analysis</button>
+                                </div>
+                                <div class="tabs-content">
+                                    <!-- Tab 1: Rough Strategy -->
+                                    <div id="rough-strategy" class="tab-content active">
+                                        <div id="rough-strategy-container"></div>
+                                    </div>
+
+                                    <!-- Tab 2: Hand Matrix -->
+                                    <div id="hand-matrix" class="tab-content">
+                                        <div class="hand-matrix-container">
+                                            <div id="hand-matrix-grid"></div>
+                                            <div id="hand-details" class="panel">
+                                                <h3>Hand Details</h3>
+                                                <div id="hand-details-content"></div>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <!-- Tab 3: EV Analysis -->
+                                    <div id="ev-analysis" class="tab-content">
+                                        <div id="ev-analysis-container"></div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+
+        <!-- Status Bar -->
+        <footer class="status-bar">
+            <div id="status-message">Ready to load solver data</div>
+        </footer>
+    </div>
+
+    <!-- Hidden File Upload Input -->
+    <input type="file" id="file-input" accept=".json" hidden>
+
+    <!-- JavaScript -->
+    <script src="/js/utils.js"></script>
+    <script src="/js/treeView.js"></script>
+    <script src="/js/strategyView.js"></script>
+    <script src="/js/handMatrix.js"></script>
+    <script src="/js/evAnalysis.js"></script>
+    <script src="/js/main.js"></script>
+</body>
+
+</html>

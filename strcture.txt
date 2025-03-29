@@ -1,0 +1,17 @@
+poker-gto-explorer/
+├── server.py                # Main Flask server
+├── tree_processor.py        # Game tree processing logic
+├── requirements.txt         # Python dependencies
+├── static/                  # Static files for the web app
+│   ├── css/
+│   │   └── main.css         # Main stylesheet
+│   ├── js/
+│   │   ├── main.js          # Main JavaScript
+│   │   ├── utils.js         # Utility functions
+│   │   ├── treeView.js      # Tree view component
+│   │   ├── strategyView.js  # Strategy view component
+│   │   ├── handMatrix.js    # Hand matrix component
+│   │   └── evAnalysis.js    # EV analysis component
+│   └── favicon.ico          # Favicon
+└── templates/
+    └── index.html           # Main HTML template
