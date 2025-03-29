@@ -14,6 +14,9 @@ const treeView = {
         this.treeContainer = container;
         container.innerHTML = '';
 
+        // Track manual user interactions with cards
+        this.manuallyExpandedCards = new Set();
+
         // Add expand all button
         const controlsDiv = document.createElement('div');
         controlsDiv.className = 'tree-controls';
@@ -38,45 +41,88 @@ const treeView = {
         if (toggle) {
             this.toggleNode(toggle);
         }
+
+        // Prevent auto-expansion of Cards nodes but don't interfere with manual interaction
+        setTimeout(() => {
+            const cardNodes = container.querySelectorAll('.tree-node-cards');
+            cardNodes.forEach(cardNode => {
+                const cardItem = cardNode.closest('li');
+                if (cardItem && !this.manuallyExpandedCards.has(cardItem.dataset.path)) {
+                    const childrenContainer = cardItem.querySelector('.tree-children');
+                    if (childrenContainer && !childrenContainer.classList.contains('collapsed')) {
+                        // Find the toggle button
+                        const toggle = cardItem.querySelector('.tree-toggle');
+                        if (toggle && toggle.innerHTML === '▼') {
+                            // Manually collapse it
+                            childrenContainer.classList.add('collapsed');
+                            toggle.innerHTML = '▶';
+                        }
+                    }
+                }
+            });
+
+            // Also explicitly collapse any node with "Cards" text
+            const allLabels = container.querySelectorAll('.tree-node-label');
+            allLabels.forEach(label => {
+                if (label.textContent === 'Cards') {
+                    const cardItem = label.closest('li');
+                    if (cardItem && !this.manuallyExpandedCards.has(cardItem.dataset.path)) {
+                        const childrenContainer = cardItem.querySelector('.tree-children');
+                        if (childrenContainer && !childrenContainer.classList.contains('collapsed')) {
+                            // Find the toggle button
+                            const toggle = cardItem.querySelector('.tree-toggle');
+                            if (toggle && toggle.innerHTML === '▼') {
+                                // Manually collapse it
+                                childrenContainer.classList.add('collapsed');
+                                toggle.innerHTML = '▶';
+                            }
+                        }
+                    }
+                }
+            });
+        }, 200); // Short delay to ensure DOM is updated
     },
+
+
 
     // Pre-expand levels to given depth
     preExpandLevels(depth) {
         if (!this.treeContainer) return;
 
-        const expandRecursive = (element, currentDepth, parentIsCards = false) => {
+        const expandRecursive = (element, currentDepth) => {
             if (currentDepth >= depth) return;
 
-            // Check if this is a cards node
-            const isCardsNode = element.querySelector('.tree-node-cards') !== null ||
-                element.classList.contains('tree-node-type-cards');
+            // Check if this is a Cards node
+            const isCardsNode =
+                element.querySelector('.tree-node-cards') !== null ||
+                element.classList.contains('tree-node-type-cards') ||
+                (element.querySelector('.tree-node-label') &&
+                    element.querySelector('.tree-node-label').textContent === 'Cards');
 
-            // Don't auto-expand cards nodes or their children
-            if (parentIsCards || isCardsNode) {
-                return;
+            // Skip Cards nodes during auto-expansion
+            if (isCardsNode) {
+                return; // Do not auto-expand Cards nodes
             }
 
             const toggle = element.querySelector(':scope > .tree-item > .tree-toggle');
             if (toggle && toggle.innerHTML === '▶') {
-                this.toggleNode(toggle);
+                // Pass false to indicate this is not a user action
+                this.toggleNode(toggle, false);
 
                 // Wait for children to be rendered
                 setTimeout(() => {
                     const children = element.querySelector(':scope > .tree-children');
                     if (children) {
                         Array.from(children.children).forEach(child => {
-                            // Pass isCardsNode to track if parent is a cards node
-                            expandRecursive(child, currentDepth + 1, isCardsNode);
+                            expandRecursive(child, currentDepth + 1);
                         });
                     }
                 }, 0);
             }
         };
 
-        expandRecursive(this.treeContainer.firstChild, 0, false);
-    }
-
-    ,
+        expandRecursive(this.treeContainer.firstChild, 0);
+    },
 
     // Expand all visible nodes
     expandAllVisible() {
@@ -162,7 +208,8 @@ const treeView = {
             toggle.innerHTML = '▶';
             toggle.addEventListener('click', (e) => {
                 e.stopPropagation();
-                this.toggleNode(toggle);
+                // Pass true to indicate this is a user action
+                this.toggleNode(toggle, true);
             });
             item.appendChild(toggle);
         } else {
@@ -223,20 +270,45 @@ const treeView = {
     },
 
     // Toggle node expansion
-    toggleNode(toggle) {
+    toggleNode(toggle, isUserAction = true) {
         const item = toggle.parentNode;
         const li = item.parentNode;
         const childrenContainer = li.querySelector('.tree-children');
 
         if (childrenContainer) {
-            if (childrenContainer.classList.contains('collapsed')) {
+            const isCollapsed = childrenContainer.classList.contains('collapsed');
+            const isCardsNode =
+                li.querySelector('.tree-node-cards') !== null ||
+                li.classList.contains('tree-node-type-cards') ||
+                (li.querySelector('.tree-node-label') &&
+                    li.querySelector('.tree-node-label').textContent === 'Cards');
+
+            // Track manual expansions of Cards nodes
+            if (isUserAction && isCardsNode && isCollapsed) {
+                const path = item.dataset.path || '';
+                this.manuallyExpandedCards.add(path);
+            }
+
+            if (isCollapsed) {
                 // Expand
                 childrenContainer.classList.remove('collapsed');
                 toggle.innerHTML = '▼';
+
+                // Load children if needed
+                const path = item.dataset.path;
+                if (!this.loadedNodes.has(path)) {
+                    this.loadChildren(path, childrenContainer);
+                }
             } else {
                 // Collapse
                 childrenContainer.classList.add('collapsed');
                 toggle.innerHTML = '▶';
+
+                // Remove from manually expanded set on collapse
+                if (isUserAction) {
+                    const path = item.dataset.path || '';
+                    this.manuallyExpandedCards.delete(path);
+                }
             }
         }
     },

@@ -1,17 +1,25 @@
-// Main JavaScript for Poker GTO Explorer - Fixed Version
+/**
+ * Poker GTO Explorer - Main JavaScript
+ * A tool for analyzing poker game theory optimal strategies
+ */
 
-// Global state
+// ================ APPLICATION STATE ================
 const app = {
-    sessionId: null,
-    currentPath: "",
-    currentNode: null,
-    selectedHand: null,
-    isLoading: false,
-    actionCache: {}, // Cache for actions to prevent duplicates
-    treeExpanded: false // Track if tree is fully expanded
+    sessionId: null,      // Current session ID from server
+    currentPath: "",      // Current navigation path
+    currentNode: null,    // Current node data
+    selectedHand: null,   // Selected hand in matrix
+    isLoading: false,     // Loading state flag
+    actionCache: {},      // Cache for actions to prevent duplicates
+    treeExpanded: false,  // Track if tree is fully expanded
+    matrixDataNeedsUpdate: true,  // Flag for hand matrix data
+    evDataNeedsUpdate: true       // Flag for EV analysis data
 };
 
-// DOM Elements
+// Track manually expanded Cards nodes
+window.manuallyExpandedCards = new Set();
+
+// ================ DOM ELEMENTS ================
 const elements = {
     // Views
     loadingView: document.getElementById('loading-view'),
@@ -47,63 +55,7 @@ const elements = {
     evAnalysisContainer: document.getElementById('ev-analysis-container')
 };
 
-// Initialize tab switching
-function initTabs() {
-    const tabButtons = document.querySelectorAll('.tab-btn');
-    tabButtons.forEach(button => {
-        button.addEventListener('click', () => {
-            const tabId = button.getAttribute('data-tab');
-
-            // Update active tab button
-            tabButtons.forEach(btn => btn.classList.remove('active'));
-            button.classList.add('active');
-
-            // Update active tab content
-            document.querySelectorAll('.tab-content').forEach(tab => {
-                tab.classList.remove('active');
-            });
-            document.getElementById(tabId).classList.add('active');
-        });
-    });
-}
-
-// Setup event listeners
-function setupEventListeners() {
-    // File upload buttons
-    elements.uploadBtn.addEventListener('click', triggerFileUpload);
-    elements.welcomeUploadBtn.addEventListener('click', triggerFileUpload);
-    elements.fileInput.addEventListener('change', handleFileUpload);
-
-    // Navigation buttons
-    elements.homeBtn.addEventListener('click', showRootNodeView);
-    elements.startExploringBtn.addEventListener('click', showExplorerView);
-
-    // Add resize event handler to adjust hand matrix visibility
-    window.addEventListener('resize', debounce(function () {
-        adjustHandMatrixSize();
-    }, 100));
-}
-
-// Adjust the hand matrix height based on window size
-function adjustHandMatrixSize() {
-    const handMatrix = document.querySelector('.hand-matrix-container');
-    if (handMatrix) {
-        const windowHeight = window.innerHeight;
-        const headerHeight = document.querySelector('.app-header').offsetHeight;
-        const breadcrumbHeight = document.querySelector('.breadcrumb-container').offsetHeight;
-        const infoHeight = document.querySelector('.strategy-info-panel').offsetHeight;
-        const tabsHeaderHeight = document.querySelector('.tabs-header').offsetHeight;
-        const statusHeight = document.querySelector('.status-bar').offsetHeight;
-
-        // Calculate available height for hand matrix
-        const availableHeight = windowHeight - headerHeight - breadcrumbHeight - infoHeight - tabsHeaderHeight - statusHeight - 60; // 60px for margins/padding
-
-        // Set minimum height
-        handMatrix.style.maxHeight = Math.max(availableHeight, 400) + 'px';
-        handMatrix.style.overflowY = 'auto';
-    }
-}
-
+// ================ FILE HANDLING ================
 // Trigger file upload dialog
 function triggerFileUpload() {
     elements.fileInput.click();
@@ -140,6 +92,9 @@ async function handleFileUpload(event) {
         // Reset application state
         app.actionCache = {};
         app.treeExpanded = false;
+        window.manuallyExpandedCards.clear();
+        app.matrixDataNeedsUpdate = true;
+        app.evDataNeedsUpdate = true;
 
         // Update UI
         elements.fileInfo.textContent = `File: ${data.filename}`;
@@ -179,12 +134,59 @@ async function loadTreeStructure() {
 
         // Pre-expand the first couple of levels for better visibility
         treeView.preExpandLevels(2);
+
+        // Ensure cards stay collapsed
+        setTimeout(collapseCardNodes, 300);
     } catch (error) {
         console.error('Error loading tree structure:', error);
         setStatus(`Error: ${error.message}`);
     }
 }
 
+// ================ VIEW MANAGEMENT ================
+// Show loading state
+function setLoading(isLoading, message) {
+    app.isLoading = isLoading;
+
+    if (isLoading) {
+        document.body.classList.add('loading');
+        if (message) {
+            setStatus(message);
+        }
+    } else {
+        document.body.classList.remove('loading');
+    }
+}
+
+// Set status message
+function setStatus(message) {
+    elements.statusMessage.textContent = message;
+}
+
+// Show root node view
+function showRootNodeView() {
+    elements.loadingView.classList.add('hidden');
+    elements.rootNodeView.classList.remove('hidden');
+    elements.explorerView.classList.add('hidden');
+
+    // Reload starting actions
+    loadStartingActions();
+}
+
+// Show explorer view
+function showExplorerView() {
+    elements.loadingView.classList.add('hidden');
+    elements.rootNodeView.classList.add('hidden');
+    elements.explorerView.classList.remove('hidden');
+
+    // Navigate to current path or root if empty
+    navigateToPath(app.currentPath || '');
+
+    // Collapse all cards nodes after navigation (with delay)
+    setTimeout(collapseCardNodes, 500);
+}
+
+// ================ GAME INFO & NAVIGATION ================
 // Display game info in root node view
 function displayGameInfo(gameInfo) {
     // Clear previous content
@@ -283,13 +285,23 @@ async function navigateToPath(path) {
         updateBreadcrumb(path);
 
         // Get node information
-        const response = await fetch(`/api/node/${app.sessionId}?path=${encodeURIComponent(path)}`);
+        let nodeInfo = null;
+        let response = await fetch(`/api/node/${app.sessionId}?path=${encodeURIComponent(path)}`);
+
         if (!response.ok) {
-            const error = await response.json();
-            throw new Error(error.error || 'Failed to load node information');
+            // Try the direct node endpoint as fallback
+            console.log("Regular path failed, trying direct node access...");
+            const directResponse = await fetch(`/api/direct_node/${app.sessionId}?path=${encodeURIComponent(path)}&actions=${treeView.actionSequence?.join(',') || ''}`);
+
+            if (directResponse.ok) {
+                nodeInfo = await directResponse.json();
+            } else {
+                throw new Error("Failed to load node through both methods");
+            }
+        } else {
+            nodeInfo = await response.json();
         }
 
-        const nodeInfo = await response.json();
         app.currentNode = nodeInfo;
 
         // Update node display
@@ -311,6 +323,12 @@ async function navigateToPath(path) {
             treeView.expandAllVisible();
         }
 
+        // Fix scrolling and ensure right panel is visible
+        fixScrollingAfterNavigation();
+
+        // Ensure cards stay collapsed (after a delay to allow tree to render)
+        setTimeout(collapseCardNodes, 300);
+
         // Adjust hand matrix size
         setTimeout(adjustHandMatrixSize, 100);
 
@@ -318,8 +336,26 @@ async function navigateToPath(path) {
     } catch (error) {
         console.error('Error navigating to path:', error);
         setStatus(`Error: ${error.message}`);
+
+        // Clear displays and show error
+        clearStrategyDisplays();
     } finally {
         setLoading(false);
+    }
+}
+
+// Fix scrolling after navigation
+function fixScrollingAfterNavigation() {
+    // Make sure the right panel is scrolled to top
+    const rightPanel = document.querySelector('.right-panel');
+    if (rightPanel) {
+        rightPanel.scrollTop = 0;
+    }
+
+    // Make sure tabs content is scrolled to top
+    const tabsContent = document.querySelector('.tabs-content');
+    if (tabsContent) {
+        tabsContent.scrollTop = 0;
     }
 }
 
@@ -424,6 +460,21 @@ function updateNavigationButtons(nodeInfo) {
     navContainer.style.gap = '8px';
     elements.actionButtons.appendChild(navContainer);
 
+    // Add up button if we're not at the root (always first)
+    if (app.currentPath) {
+        const parentPath = app.currentPath.split('/').slice(0, -1).join('/');
+
+        const upBtn = document.createElement('button');
+        upBtn.classList.add('btn', 'action-btn', 'action-up');
+        upBtn.textContent = '↑ Up';
+
+        upBtn.addEventListener('click', () => {
+            navigateToPath(parentPath);
+        });
+
+        navContainer.appendChild(upBtn);
+    }
+
     // Add action buttons
     if (actions.length > 0) {
         actions.forEach(action => {
@@ -442,203 +493,86 @@ function updateNavigationButtons(nodeInfo) {
         });
     }
 
-    // Add dealcards button if there are dealcards
-    if (nodeInfo.dealcards && nodeInfo.dealcards.length > 0) {
+    // Special handling for cards - check both dealcards and cards properties
+    const cardsList = nodeInfo.dealcards || nodeInfo.cards || [];
+
+    if (cardsList && cardsList.length > 0) {
+        // Add a "Cards" button at the top for easy access
         const cardsBtn = document.createElement('button');
         cardsBtn.classList.add('btn', 'action-btn', 'action-cards');
         cardsBtn.textContent = 'Cards';
-
+        cardsBtn.style.backgroundColor = '#ffd700';
         cardsBtn.addEventListener('click', () => {
-            const newPath = `${app.currentPath}/dealcards`;
+            // Navigate to standard cards path
+            const newPath = nodeInfo.dealcards
+                ? `${app.currentPath}/dealcards`
+                : `${app.currentPath}/cards`;
             navigateToPath(newPath);
         });
-
         navContainer.appendChild(cardsBtn);
 
-        // If there are only a few cards, add buttons for each
-        if (nodeInfo.dealcards.length <= 6) {
-            const cardsContainer = document.createElement('div');
-            cardsContainer.className = 'cards-container';
-            cardsContainer.style.display = 'flex';
-            cardsContainer.style.flexWrap = 'wrap';
-            cardsContainer.style.gap = '4px';
-            navContainer.appendChild(cardsContainer);
+        // Create a container for all cards
+        const cardsContainer = document.createElement('div');
+        cardsContainer.className = 'cards-container';
+        cardsContainer.style.marginTop = '8px';
 
-            nodeInfo.dealcards.forEach(card => {
-                const cardBtn = document.createElement('button');
-                cardBtn.classList.add('card');
+        // Add a header for the cards section
+        const cardsHeader = document.createElement('div');
+        cardsHeader.style.width = '100%';
+        cardsHeader.style.fontWeight = 'bold';
+        cardsHeader.style.marginBottom = '8px';
+        cardsHeader.textContent = `Available Cards (${cardsList.length})`;
+        cardsContainer.appendChild(cardsHeader);
 
-                // Add suit class if it's a card with suit
-                if (card.length === 2) {
-                    cardBtn.classList.add(`card-${card[1]}`);
-                    cardBtn.innerHTML = `${card[0]}${getSuitSymbol(card[1])}`;
-                } else {
-                    cardBtn.textContent = card;
-                }
+        // Sort cards for better display
+        const sortedCards = [...cardsList].sort((a, b) => {
+            // Sort by rank first (A, K, Q, J, T, 9, 8, 7, 6, 5, 4, 3, 2)
+            const rankOrder = { 'A': 1, 'K': 2, 'Q': 3, 'J': 4, 'T': 5, '9': 6, '8': 7, '7': 8, '6': 9, '5': 10, '4': 11, '3': 12, '2': 13 };
+            // Then by suit (clubs, diamonds, hearts, spades)
+            const suitOrder = { 'c': 1, 'd': 2, 'h': 3, 's': 4 };
 
-                cardBtn.addEventListener('click', () => {
-                    const newPath = `${app.currentPath}/dealcards/${card}`;
-                    navigateToPath(newPath);
-                });
-
-                cardsContainer.appendChild(cardBtn);
-            });
-        }
-    }
-
-    // Add up button if we're not at the root
-    if (app.currentPath) {
-        const parentPath = app.currentPath.split('/').slice(0, -1).join('/');
-
-        const upBtn = document.createElement('button');
-        upBtn.classList.add('btn', 'action-btn', 'action-up');
-        upBtn.textContent = '↑ Up';
-
-        upBtn.addEventListener('click', () => {
-            navigateToPath(parentPath);
+            if (a.length === 2 && b.length === 2) {
+                // For cards like "Ac", "Kd", etc.
+                const rankDiff = rankOrder[a[0]] - rankOrder[b[0]];
+                if (rankDiff !== 0) return rankDiff;
+                return suitOrder[a[1]] - suitOrder[b[1]];
+            }
+            return a.localeCompare(b);
         });
 
-        navContainer.appendChild(upBtn);
-    }
-    function updateNavigationButtons(nodeInfo) {
-        // Clear existing buttons
-        elements.actionButtons.innerHTML = '';
+        // Display all cards directly in navigation area
+        sortedCards.forEach(card => {
+            const cardBtn = document.createElement('button');
+            cardBtn.classList.add('card');
 
-        // Cache the actions for this node if not already cached
-        const nodePath = app.currentPath;
-        if (!app.actionCache[nodePath] && nodeInfo.actions) {
-            app.actionCache[nodePath] = nodeInfo.actions;
-        }
-
-        // Use cached actions to ensure consistency
-        const actions = app.actionCache[nodePath] || nodeInfo.actions || [];
-
-        // Create navigation container for better layout
-        const navContainer = document.createElement('div');
-        navContainer.className = 'nav-buttons-wrapper';
-        navContainer.style.display = 'flex';
-        navContainer.style.flexWrap = 'wrap';
-        navContainer.style.gap = '8px';
-        elements.actionButtons.appendChild(navContainer);
-
-        // Add action buttons
-        if (actions.length > 0) {
-            actions.forEach(action => {
-                const actionType = getActionType(action);
-
-                const actionBtn = document.createElement('button');
-                actionBtn.classList.add('btn', 'action-btn', `action-${actionType}`);
-                actionBtn.textContent = action;
-
-                actionBtn.addEventListener('click', () => {
-                    const newPath = `${app.currentPath}/childrens/${action}`;
-                    navigateToPath(newPath);
-                });
-
-                navContainer.appendChild(actionBtn);
-            });
-        }
-
-        // Add dealcards button and individual card buttons
-        if (nodeInfo.dealcards && nodeInfo.dealcards.length > 0) {
-            // If there are cards, display them directly without requiring an additional click
-            const cardsContainer = document.createElement('div');
-            cardsContainer.className = 'cards-container';
-            cardsContainer.style.display = 'flex';
-            cardsContainer.style.flexWrap = 'wrap';
-            cardsContainer.style.gap = '4px';
-            cardsContainer.style.marginTop = '8px';
-
-            // Add a header for the cards section
-            const cardsHeader = document.createElement('div');
-            cardsHeader.style.width = '100%';
-            cardsHeader.style.fontWeight = 'bold';
-            cardsHeader.style.marginBottom = '4px';
-            cardsHeader.textContent = 'Available Cards:';
-            cardsContainer.appendChild(cardsHeader);
-
-            // Sort cards for better display
-            const sortedCards = [...nodeInfo.dealcards].sort((a, b) => {
-                // Sort by rank first (A, K, Q, J, T, 9, 8, 7, 6, 5, 4, 3, 2)
-                const rankOrder = { 'A': 1, 'K': 2, 'Q': 3, 'J': 4, 'T': 5, '9': 6, '8': 7, '7': 8, '6': 9, '5': 10, '4': 11, '3': 12, '2': 13 };
-                // Then by suit (clubs, diamonds, hearts, spades)
-                const suitOrder = { 'c': 1, 'd': 2, 'h': 3, 's': 4 };
-
-                if (a.length === 2 && b.length === 2) {
-                    // For cards like "Ac", "Kd", etc.
-                    const rankDiff = rankOrder[a[0]] - rankOrder[b[0]];
-                    if (rankDiff !== 0) return rankDiff;
-                    return suitOrder[a[1]] - suitOrder[b[1]];
-                }
-                return a.localeCompare(b);
-            });
-
-            // Display all cards directly in navigation area
-            sortedCards.forEach(card => {
-                const cardBtn = document.createElement('button');
-                cardBtn.classList.add('card');
-
-                // Add suit class if it's a card with suit
-                if (card.length === 2) {
-                    cardBtn.classList.add(`card-${card[1]}`);
-                    cardBtn.innerHTML = `${card[0]}${getSuitSymbol(card[1])}`;
-                } else {
-                    cardBtn.textContent = card;
-                }
-
-                cardBtn.addEventListener('click', () => {
-                    const newPath = `${app.currentPath}/dealcards/${card}`;
-                    navigateToPath(newPath);
-                });
-
-                cardsContainer.appendChild(cardBtn);
-            });
-
-            navContainer.appendChild(cardsContainer);
-
-            // If there are many cards, add a "Show All Cards" button at the top for visibility
-            if (nodeInfo.dealcards.length > 10) {
-                const cardsBtn = document.createElement('button');
-                cardsBtn.classList.add('btn', 'action-btn', 'action-cards');
-                cardsBtn.textContent = `Cards (${nodeInfo.dealcards.length})`;
-                cardsBtn.title = 'See all cards below';
-                cardsBtn.style.position = 'relative';
-
-                // Add scroll indicator
-                const scrollIndicator = document.createElement('span');
-                scrollIndicator.innerHTML = '&#9660;'; // Down arrow
-                scrollIndicator.style.marginLeft = '5px';
-                scrollIndicator.style.fontSize = '10px';
-                cardsBtn.appendChild(scrollIndicator);
-
-                cardsBtn.addEventListener('click', () => {
-                    // Scroll to the cards container
-                    cardsContainer.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                });
-
-                // Insert at beginning
-                navContainer.insertBefore(cardsBtn, navContainer.firstChild);
+            // Add suit class if it's a card with suit
+            if (card.length === 2) {
+                cardBtn.classList.add(`card-${card[1]}`);
+                cardBtn.innerHTML = `${card[0]}${getSuitSymbol(card[1])}`;
+            } else {
+                cardBtn.textContent = card;
             }
-        }
 
-        // Add up button if we're not at the root
-        if (app.currentPath) {
-            const parentPath = app.currentPath.split('/').slice(0, -1).join('/');
-
-            const upBtn = document.createElement('button');
-            upBtn.classList.add('btn', 'action-btn', 'action-up');
-            upBtn.textContent = '↑ Up';
-
-            upBtn.addEventListener('click', () => {
-                navigateToPath(parentPath);
+            cardBtn.addEventListener('click', () => {
+                // Handle both possible paths
+                let newPath;
+                if (nodeInfo.dealcards) {
+                    newPath = `${app.currentPath}/dealcards/${card}`;
+                } else {
+                    newPath = `${app.currentPath}/cards/${card}`;
+                }
+                navigateToPath(newPath);
             });
 
-            // Add at the beginning
-            navContainer.insertBefore(upBtn, navContainer.firstChild);
-        }
+            cardsContainer.appendChild(cardBtn);
+        });
+
+        // Add the cards container to navigation area
+        navContainer.appendChild(cardsContainer);
     }
 }
 
+// ================ STRATEGY DISPLAYS ================
 // Update strategy displays
 async function updateStrategyDisplays(path) {
     try {
@@ -655,7 +589,7 @@ async function updateStrategyDisplays(path) {
         strategyView.updateRoughStrategy(strategyInfo, elements.roughStrategyContainer);
 
         // Only fetch specific data when the corresponding tab is active or about to be viewed
-        const activeTab = document.querySelector('.tab-btn.active').getAttribute('data-tab');
+        const activeTab = document.querySelector('.tab-btn.active')?.getAttribute('data-tab');
 
         // Get hand matrix data only when needed
         if (activeTab === 'hand-matrix' || app.matrixDataNeedsUpdate) {
@@ -683,51 +617,6 @@ async function updateStrategyDisplays(path) {
         console.error('Error updating strategy displays:', error);
         clearStrategyDisplays();
     }
-}
-
-// Initialize tab switching with lazy loading
-function initTabs() {
-    const tabButtons = document.querySelectorAll('.tab-btn');
-    tabButtons.forEach(button => {
-        button.addEventListener('click', () => {
-            const tabId = button.getAttribute('data-tab');
-            const previousTab = document.querySelector('.tab-btn.active').getAttribute('data-tab');
-
-            // Update active tab button
-            tabButtons.forEach(btn => btn.classList.remove('active'));
-            button.classList.add('active');
-
-            // Update active tab content
-            document.querySelectorAll('.tab-content').forEach(tab => {
-                tab.classList.remove('active');
-            });
-            document.getElementById(tabId).classList.add('active');
-
-            // Load data when switching to a tab that needs it
-            if (tabId === 'hand-matrix' && previousTab !== 'hand-matrix' && app.currentPath) {
-                if (!elements.handMatrixGrid.hasChildNodes()) {
-                    fetch(`/api/hand_matrix/${app.sessionId}?path=${encodeURIComponent(app.currentPath)}`)
-                        .then(response => response.json())
-                        .then(matrixData => {
-                            handMatrix.updateHandMatrix(matrixData, elements.handMatrixGrid, handleHandClick);
-                        });
-                }
-            } else if (tabId === 'ev-analysis' && previousTab !== 'ev-analysis' && app.currentPath) {
-                if (!elements.evAnalysisContainer.hasChildNodes()) {
-                    fetch(`/api/ev_analysis/${app.sessionId}?path=${encodeURIComponent(app.currentPath)}`)
-                        .then(response => response.json())
-                        .then(evData => {
-                            evAnalysis.updateEvAnalysis(evData, elements.evAnalysisContainer);
-                        });
-                }
-            }
-
-            // Adjust hand matrix size when that tab is selected
-            if (tabId === 'hand-matrix') {
-                setTimeout(adjustHandMatrixSize, 100);
-            }
-        });
-    });
 }
 
 // Clear strategy displays
@@ -769,45 +658,244 @@ async function handleHandClick(hand) {
     }
 }
 
-// Show loading state
-function setLoading(isLoading, message) {
-    app.isLoading = isLoading;
+// ================ TABS MANAGEMENT ================
+// Initialize tab switching
+function initTabs() {
+    const tabButtons = document.querySelectorAll('.tab-btn');
+    tabButtons.forEach(button => {
+        button.addEventListener('click', () => {
+            const tabId = button.getAttribute('data-tab');
+            const previousTab = document.querySelector('.tab-btn.active')?.getAttribute('data-tab');
 
-    if (isLoading) {
-        document.body.classList.add('loading');
-        if (message) {
-            setStatus(message);
+            // Update active tab button
+            tabButtons.forEach(btn => btn.classList.remove('active'));
+            button.classList.add('active');
+
+            // Update active tab content
+            document.querySelectorAll('.tab-content').forEach(tab => {
+                tab.classList.remove('active');
+            });
+            document.getElementById(tabId).classList.add('active');
+
+            // Load data when switching to a tab that needs it
+            if (tabId === 'hand-matrix' && previousTab !== 'hand-matrix' && app.currentPath) {
+                if (!elements.handMatrixGrid.hasChildNodes()) {
+                    fetch(`/api/hand_matrix/${app.sessionId}?path=${encodeURIComponent(app.currentPath)}`)
+                        .then(response => response.json())
+                        .then(matrixData => {
+                            handMatrix.updateHandMatrix(matrixData, elements.handMatrixGrid, handleHandClick);
+                        });
+                }
+            } else if (tabId === 'ev-analysis' && previousTab !== 'ev-analysis' && app.currentPath) {
+                if (!elements.evAnalysisContainer.hasChildNodes()) {
+                    fetch(`/api/ev_analysis/${app.sessionId}?path=${encodeURIComponent(app.currentPath)}`)
+                        .then(response => response.json())
+                        .then(evData => {
+                            evAnalysis.updateEvAnalysis(evData, elements.evAnalysisContainer);
+                        });
+                }
+            }
+
+            // Adjust hand matrix size when that tab is selected
+            if (tabId === 'hand-matrix') {
+                setTimeout(adjustHandMatrixSize, 100);
+            }
+        });
+    });
+}
+
+// ================ CARDS MANAGEMENT ================
+// Function to collapse Cards nodes with respect for manual interaction
+function collapseCardNodes(respectManualExpansion = true) {
+    // Find all card nodes by text content
+    const cardLabels = document.querySelectorAll('.tree-node-label');
+    cardLabels.forEach(label => {
+        if (label.textContent === 'Cards') {
+            const cardItem = label.closest('li');
+            if (cardItem) {
+                const path = cardItem.dataset.path || '';
+                // Skip if manually expanded by user and we're respecting that
+                if (respectManualExpansion && window.manuallyExpandedCards.has(path)) {
+                    return;
+                }
+
+                const childrenContainer = cardItem.querySelector('.tree-children');
+                if (childrenContainer && !childrenContainer.classList.contains('collapsed')) {
+                    // Find the toggle button
+                    const toggle = cardItem.querySelector('.tree-toggle');
+                    if (toggle && toggle.innerHTML === '▼') {
+                        // Collapse it
+                        childrenContainer.classList.add('collapsed');
+                        toggle.innerHTML = '▶';
+                    }
+                }
+            }
         }
-    } else {
-        document.body.classList.remove('loading');
+    });
+
+    // Also find by class
+    const cardNodes = document.querySelectorAll('.tree-node-type-cards, .tree-node-cards');
+    cardNodes.forEach(cardNode => {
+        const cardItem = cardNode.closest('li');
+        if (cardItem) {
+            const path = cardItem.dataset.path || '';
+            // Skip if manually expanded by user and we're respecting that
+            if (respectManualExpansion && window.manuallyExpandedCards.has(path)) {
+                return;
+            }
+
+            const childrenContainer = cardItem.querySelector('.tree-children');
+            if (childrenContainer && !childrenContainer.classList.contains('collapsed')) {
+                // Find the toggle button
+                const toggle = cardItem.querySelector('.tree-toggle');
+                if (toggle && toggle.innerHTML === '▼') {
+                    // Collapse it
+                    childrenContainer.classList.add('collapsed');
+                    toggle.innerHTML = '▶';
+                }
+            }
+        }
+    });
+}
+
+// ================ SCROLL FIXES ================
+// Modified selectNode function for treeView to fix scrolling
+function fixTreeViewSelectNode() {
+    // Save reference to original method if it exists
+    const originalSelectNode = treeView.selectNode;
+
+    // Override with improved version
+    treeView.selectNode = function (path) {
+        // Clear all selections
+        const items = document.querySelectorAll('.tree-item');
+        items.forEach(item => {
+            item.classList.remove('selected');
+        });
+
+        // Find and select the node
+        const item = document.querySelector(`.tree-item[data-path="${path}"]`);
+        if (item) {
+            item.classList.add('selected');
+
+            // Expand path to make selection visible
+            this.expandPath(path);
+
+            // Improved scrolling that preserves ability to scroll afterward
+            setTimeout(() => {
+                // Get the tree container and its scroll properties
+                const treeContainer = document.querySelector('.tree-container');
+                if (!treeContainer) return;
+
+                const containerRect = treeContainer.getBoundingClientRect();
+                const itemRect = item.getBoundingClientRect();
+
+                // Check if item is outside visible area
+                const isAbove = itemRect.top < containerRect.top + 40; // Add margin
+                const isBelow = itemRect.bottom > containerRect.bottom - 40; // Add margin
+
+                if (isAbove || isBelow) {
+                    // Calculate new scroll position that places item in the middle
+                    // but allows for further scrolling
+                    const scrollMiddle = itemRect.top + (itemRect.height / 2) -
+                        containerRect.top - (containerRect.height / 2);
+
+                    // Smooth scroll to the calculated position
+                    treeContainer.scrollBy({
+                        top: scrollMiddle,
+                        behavior: 'smooth'
+                    });
+                }
+            }, 100);
+        } else {
+            // Node not found in visible tree, might need to load more of the tree
+            this.expandToFindNode(path);
+        }
+    };
+}
+
+// Fix for the tree container scrolling
+function fixTreeContainerScrolling() {
+    const treeContainer = document.querySelector('.tree-container');
+    if (treeContainer) {
+        // Ensure proper scroll behavior
+        treeContainer.style.overflowY = 'auto';
+        treeContainer.style.overscrollBehavior = 'contain'; // Prevent scroll chaining
     }
 }
 
-// Set status message
-function setStatus(message) {
-    elements.statusMessage.textContent = message;
+// Adjust the hand matrix height based on window size
+function adjustHandMatrixSize() {
+    const handMatrix = document.querySelector('.hand-matrix-container');
+    if (handMatrix) {
+        const windowHeight = window.innerHeight;
+        const headerHeight = document.querySelector('.app-header')?.offsetHeight || 0;
+        const breadcrumbHeight = document.querySelector('.breadcrumb-container')?.offsetHeight || 0;
+        const infoHeight = document.querySelector('.strategy-info-panel')?.offsetHeight || 0;
+        const tabsHeaderHeight = document.querySelector('.tabs-header')?.offsetHeight || 0;
+        const statusHeight = document.querySelector('.status-bar')?.offsetHeight || 0;
+
+        // Calculate available height for hand matrix
+        const availableHeight = windowHeight - headerHeight - breadcrumbHeight - infoHeight - tabsHeaderHeight - statusHeight - 60; // 60px for margins/padding
+
+        // Set minimum height
+        handMatrix.style.maxHeight = Math.max(availableHeight, 400) + 'px';
+        handMatrix.style.overflowY = 'auto';
+    }
 }
 
-// Show root node view
-function showRootNodeView() {
-    elements.loadingView.classList.add('hidden');
-    elements.rootNodeView.classList.remove('hidden');
-    elements.explorerView.classList.add('hidden');
+// Fix right panel scrolling when tree is scrolled
+function fixSplitViewScrolling() {
+    // Make sure right panel maintains its position and scroll independently
+    const rightPanel = document.querySelector('.right-panel');
+    if (rightPanel) {
+        rightPanel.style.overflow = 'auto';
+    }
 
-    // Reload starting actions
-    loadStartingActions();
+    // Make sure each section inside right panel has correct overflow
+    const sections = document.querySelectorAll('.strategy-info-panel, .tabs-container');
+    sections.forEach(section => {
+        section.style.overflow = 'auto';
+    });
+
+    // Fix height calculations
+    adjustPanelHeights();
 }
 
-// Show explorer view
-function showExplorerView() {
-    elements.loadingView.classList.add('hidden');
-    elements.rootNodeView.classList.add('hidden');
-    elements.explorerView.classList.remove('hidden');
+// Function to adjust panel heights correctly
+function adjustPanelHeights() {
+    const windowHeight = window.innerHeight;
+    const headerHeight = document.querySelector('.app-header')?.offsetHeight || 0;
+    const breadcrumbHeight = document.querySelector('.breadcrumb-container')?.offsetHeight || 0;
+    const statusHeight = document.querySelector('.status-bar')?.offsetHeight || 0;
 
-    // Navigate to current path or root if empty
-    navigateToPath(app.currentPath || '');
+    // Calculate available height
+    const availableHeight = windowHeight - headerHeight - breadcrumbHeight - statusHeight;
+
+    // Set split view height
+    const splitView = document.querySelector('.split-view');
+    if (splitView) {
+        splitView.style.height = `${availableHeight}px`;
+    }
+
+    // Set tree container height
+    const treeContainer = document.querySelector('.tree-container');
+    if (treeContainer) {
+        const treeHeaderHeight = document.querySelector('.left-panel h3')?.offsetHeight || 0;
+        treeContainer.style.height = `calc(100% - ${treeHeaderHeight}px)`;
+    }
+
+    // Adjust tabs container
+    const tabsContainer = document.querySelector('.tabs-container');
+    if (tabsContainer) {
+        const infoPanel = document.querySelector('.strategy-info-panel');
+        const infoPanelHeight = infoPanel?.offsetHeight || 0;
+        const navHeight = document.querySelector('.nav-buttons-container')?.offsetHeight || 0;
+        const availableTabsHeight = availableHeight - infoPanelHeight - navHeight - 40; // 40px for margins
+        tabsContainer.style.maxHeight = `${availableTabsHeight}px`;
+    }
 }
 
+// ================ UTILITY FUNCTIONS ================
 // Helper function to determine action type
 function getActionType(action) {
     if (action.includes('CHECK')) return 'check';
@@ -844,21 +932,137 @@ function debounce(func, wait) {
     };
 }
 
+// Add CSS styles for scroll fixes
+function addScrollCSSFixes() {
+    // Check if styles already exist
+    if (document.getElementById('scroll-fix-styles')) return;
+
+    const style = document.createElement('style');
+    style.id = 'scroll-fix-styles';
+    style.textContent = `
+        /* Extra space at the bottom of tree */
+        .tree-view:after {
+            content: '';
+            display: block;
+            height: 200px;
+        }
+        
+        /* Fix for tab content scrolling */
+        .tab-content {
+            padding-bottom: 100px;
+        }
+        
+        /* Fix for node selection visibility */
+        .tree-item.selected {
+            z-index: 2;
+            box-shadow: 0 0 5px rgba(0, 0, 0, 0.2);
+        }
+    `;
+    document.head.appendChild(style);
+}
+
+// ================ EVENT LISTENERS ================
+// Setup event listeners
+function setupEventListeners() {
+    // File upload buttons
+    elements.uploadBtn.addEventListener('click', triggerFileUpload);
+    elements.welcomeUploadBtn.addEventListener('click', triggerFileUpload);
+    elements.fileInput.addEventListener('change', handleFileUpload);
+
+    // Navigation buttons
+    elements.homeBtn.addEventListener('click', showRootNodeView);
+    elements.startExploringBtn.addEventListener('click', showExplorerView);
+
+    // Add resize event handler to adjust hand matrix visibility
+    window.addEventListener('resize', debounce(function () {
+        adjustHandMatrixSize();
+        adjustPanelHeights();
+    }, 200));
+
+    // Track manual card expansions
+    document.addEventListener('click', function (e) {
+        const toggle = e.target.closest('.tree-toggle');
+        if (!toggle) return;
+
+        const item = toggle.parentNode;
+        const li = item.parentNode;
+        const path = item.dataset.path || '';
+
+        // Check if this is a Cards node
+        const isCardsNode =
+            li.querySelector('.tree-node-cards') !== null ||
+            li.classList.contains('tree-node-type-cards') ||
+            (li.querySelector('.tree-node-label') &&
+                li.querySelector('.tree-node-label').textContent === 'Cards');
+
+        if (isCardsNode) {
+            const childrenContainer = li.querySelector('.tree-children');
+            const isCollapsed = childrenContainer.classList.contains('collapsed');
+
+            if (isCollapsed) {
+                // User is expanding a cards node
+                window.manuallyExpandedCards.add(path);
+            } else {
+                // User is collapsing a cards node
+                window.manuallyExpandedCards.delete(path);
+            }
+        }
+    }, true);
+
+    // Fix tree container scrolling issues
+    document.querySelector('.tree-container')?.addEventListener('scroll', function () {
+        // When manually scrolling the tree, make sure right panel stays visible
+        const rightPanel = document.querySelector('.right-panel');
+        if (rightPanel) {
+            rightPanel.scrollTop = 0;
+        }
+    });
+}
+
+// ================ INITIALIZATION ================
+// Initialize app
+function init() {
+    // Basic initialization
+    initTabs();
+    setupEventListeners();
+
+    // Apply scroll fixes
+    fixTreeViewSelectNode();
+    fixTreeContainerScrolling();
+    fixSplitViewScrolling();
+    addScrollCSSFixes();
+
+    // Set up tree observer
+    const treeObserver = new MutationObserver(function () {
+        setTimeout(collapseCardNodes, 100);
+    });
+
+    // Start observing once the tree container is available
+    setTimeout(function () {
+        const treeContainer = document.getElementById('game-tree');
+        if (treeContainer) {
+            treeObserver.observe(treeContainer, {
+                childList: true,
+                subtree: true
+            });
+        }
+    }, 1000);
+
+    // Initial adjustments
+    setTimeout(adjustHandMatrixSize, 300);
+    setTimeout(adjustPanelHeights, 300);
+
+    setStatus('Ready to load solver data');
+}
+
+// ================ EXPOSE GLOBAL FUNCTIONS ================
 // Expose functions to global scope for event handlers
 window.navigateToPath = navigateToPath;
 window.showRootNodeView = showRootNodeView;
 window.showExplorerView = showExplorerView;
 window.debounce = debounce;
-
-// Initialize app
-function init() {
-    initTabs();
-    setupEventListeners();
-    setStatus('Ready to load solver data');
-
-    // Apply initial hand matrix height adjustment
-    setTimeout(adjustHandMatrixSize, 300);
-}
+window.collapseCardNodes = collapseCardNodes;
+window.adjustPanelHeights = adjustPanelHeights;
 
 // Run initialization when DOM is loaded
 document.addEventListener('DOMContentLoaded', init);

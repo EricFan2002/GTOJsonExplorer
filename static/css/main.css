@@ -1,6 +1,9 @@
-/* Main Styles for Poker GTO Explorer */
+/* 
+ * Main Styles for Poker GTO Explorer
+ * A clean, organized CSS file for the poker strategy explorer application
+ */
 
-/* Base Styles */
+/* ================ Variables ================ */
 :root {
     /* Color palette */
     --primary-color: #3498db;
@@ -41,6 +44,7 @@
     --shadow-lg: 0 8px 16px rgba(0, 0, 0, 0.1);
 }
 
+/* ================ Base Styles ================ */
 * {
     box-sizing: border-box;
     margin: 0;
@@ -55,7 +59,11 @@ body {
     line-height: 1.5;
 }
 
-/* Layout */
+.hidden {
+    display: none !important;
+}
+
+/* ================ App Layout ================ */
 .app-container {
     display: flex;
     flex-direction: column;
@@ -64,6 +72,21 @@ body {
     overflow: hidden;
 }
 
+.main-content {
+    flex: 1;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+}
+
+.content-view {
+    flex: 1;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+}
+
+/* ================ Header & Status Bar ================ */
 .app-header {
     display: flex;
     justify-content: space-between;
@@ -94,20 +117,6 @@ body {
     gap: var(--spacing-sm);
 }
 
-.main-content {
-    flex: 1;
-    overflow: hidden;
-    display: flex;
-    flex-direction: column;
-}
-
-.content-view {
-    flex: 1;
-    overflow: hidden;
-    display: flex;
-    flex-direction: column;
-}
-
 .status-bar {
     height: 24px;
     padding: 0 var(--spacing-md);
@@ -119,11 +128,7 @@ body {
     color: #666;
 }
 
-.hidden {
-    display: none !important;
-}
-
-/* Buttons */
+/* ================ Button Styles ================ */
 .btn {
     cursor: pointer;
     border: none;
@@ -180,7 +185,7 @@ body {
     font-size: 16px;
 }
 
-/* Action Buttons */
+/* ================ Action Buttons ================ */
 .action-btn {
     padding: var(--spacing-xs) var(--spacing-sm);
     border-radius: 4px;
@@ -227,7 +232,7 @@ body {
     color: black;
 }
 
-/* Card Styling */
+/* ================ Card Styling ================ */
 .card {
     display: inline-flex;
     align-items: center;
@@ -243,21 +248,74 @@ body {
 
 .card-c {
     color: var(--clubs-color);
+    border-color: var(--clubs-color);
 }
 
 .card-d {
     color: var(--diamonds-color);
+    border-color: var(--diamonds-color);
 }
 
 .card-h {
     color: var(--hearts-color);
+    border-color: var(--hearts-color);
 }
 
 .card-s {
     color: var(--spades-color);
+    border-color: var(--spades-color);
 }
 
-/* Panels */
+/* Cards in navigation area */
+.cards-container {
+    background-color: #f9f9f9;
+    border-radius: 6px;
+    padding: 8px;
+    border: 1px solid var(--border-color);
+    width: 100%;
+    max-height: 200px;
+    overflow-y: auto;
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-start;
+    gap: 4px;
+    margin-top: 8px;
+}
+
+.cards-container .card {
+    width: 40px;
+    height: 35px;
+    margin: 2px;
+    font-size: 14px;
+    font-weight: bold;
+    cursor: pointer;
+    transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.cards-container .card:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-md);
+}
+
+@keyframes card-pulse {
+    0% {
+        transform: scale(1);
+    }
+
+    50% {
+        transform: scale(1.05);
+    }
+
+    100% {
+        transform: scale(1);
+    }
+}
+
+.card:active {
+    animation: card-pulse 0.3s ease;
+}
+
+/* ================ Panel Styles ================ */
 .panel {
     background-color: var(--panel-bg-color);
     border-radius: 6px;
@@ -276,7 +334,7 @@ body {
     text-align: center;
 }
 
-/* Loading View */
+/* ================ Loading View ================ */
 .loading-container {
     flex: 1;
     display: flex;
@@ -288,7 +346,7 @@ body {
     padding: var(--spacing-xl);
 }
 
-/* Root Node View */
+/* ================ Root Node View ================ */
 .root-node-container {
     width: 100%;
     max-width: 800px;
@@ -325,7 +383,8 @@ body {
     justify-content: center;
 }
 
-/* Explorer View */
+/* ================ Explorer View ================ */
+/* Breadcrumb Navigation */
 .breadcrumb-container {
     padding: var(--spacing-sm) var(--spacing-md);
     background-color: var(--panel-bg-color);
@@ -335,6 +394,9 @@ body {
     overflow-x: auto;
     white-space: nowrap;
     height: 35px;
+    position: sticky;
+    top: 0;
+    z-index: 10;
 }
 
 .breadcrumb-item {
@@ -361,29 +423,36 @@ body {
     color: #999;
 }
 
+/* Split View Layout */
 .split-view {
     display: flex;
     flex: 1;
     overflow: hidden;
+    height: calc(100vh - 119px);
+    /* Adjust for header and status bar heights */
 }
 
 .left-panel {
     width: 300px;
-    overflow: auto;
-    resize: horizontal;
+    height: 100%;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
     border-right: 1px solid var(--border-color);
 }
 
 .right-panel {
     flex: 1;
+    height: 100%;
+    overflow: hidden;
     display: flex;
     flex-direction: column;
-    overflow: hidden;
 }
 
+/* Strategy Info Panel */
 .strategy-info-panel {
     flex-shrink: 0;
-    max-height: 200px;
+    max-height: 280px;
     margin: var(--spacing-md);
     margin-bottom: 0;
     overflow: auto;
@@ -394,8 +463,8 @@ body {
     grid-template-columns: auto 1fr;
     gap: var(--spacing-xs);
     padding: var(--spacing-sm);
-    max-height: 100px;
-    overflow-y: auto;
+    max-height: none;
+    overflow-y: visible;
 }
 
 .nav-buttons-container {
@@ -405,7 +474,11 @@ body {
     gap: var(--spacing-sm);
     overflow-x: auto;
     border-top: 1px solid var(--border-color);
-    height: 40px;
+    height: auto;
+    min-height: 40px;
+    background-color: #f7f7f7;
+    border-radius: 4px;
+    margin-top: 10px;
 }
 
 .action-buttons {
@@ -413,21 +486,37 @@ body {
     gap: var(--spacing-sm);
 }
 
-/* Tree View */
+/* ================ Tree View ================ */
 .tree-container {
+    flex: 1;
+    overflow-y: auto;
+    overflow-x: hidden;
+    overscroll-behavior: contain;
     padding: var(--spacing-sm);
-    height: calc(100% - 35px);
-    /* 35px is the height of the panel header */
-    overflow: auto;
+    padding-bottom: 100px;
+}
+
+.tree-controls {
+    margin-bottom: 8px;
+    padding: 4px;
+    border-bottom: 1px solid var(--border-color);
 }
 
 .tree-view {
     list-style-type: none;
     padding-left: var(--spacing-sm);
+    margin: 0;
+}
+
+.tree-view:after {
+    content: '';
+    display: block;
+    height: 200px;
 }
 
 .tree-view li {
-    margin: var(--spacing-xs) 0;
+    margin: 0;
+    padding: 0;
 }
 
 .tree-item {
@@ -437,6 +526,8 @@ body {
     padding: var(--spacing-xs) var(--spacing-sm);
     border-radius: 4px;
     transition: background-color 0.1s;
+    white-space: nowrap;
+    margin: 0;
 }
 
 .tree-item:hover {
@@ -446,6 +537,8 @@ body {
 .tree-item.selected {
     background-color: var(--primary-color);
     color: white;
+    position: relative;
+    z-index: 1;
 }
 
 .tree-toggle {
@@ -456,14 +549,26 @@ body {
     align-items: center;
     justify-content: center;
     cursor: pointer;
+    transition: transform 0.2s;
+    z-index: 2;
+    position: relative;
 }
 
 .tree-children {
     list-style-type: none;
     padding-left: var(--spacing-md);
+    margin: 0;
     overflow: hidden;
+    transition: max-height 0.2s ease-out;
+    max-height: 0;
 }
 
+.tree-children:not(.collapsed) {
+    max-height: 5000px;
+    transition: max-height 0.3s ease-in;
+}
+
+/* Tree Node Types */
 .tree-node-action,
 .tree-node-card,
 .tree-node-cards {
@@ -472,14 +577,17 @@ body {
     padding: var(--spacing-xs) var(--spacing-sm);
     border-radius: 4px;
     margin-left: var(--spacing-xs);
+    font-weight: bold;
 }
 
 .tree-node-action {
-    font-weight: bold;
+    min-width: 50px;
+    justify-content: center;
 }
 
 .action-node-check {
     background-color: var(--check-color);
+    color: black;
 }
 
 .action-node-call {
@@ -490,24 +598,51 @@ body {
 .action-node-bet,
 .action-node-raise {
     background-color: var(--bet-color);
+    color: black;
 }
 
 .action-node-fold {
     background-color: var(--fold-color);
+    color: black;
 }
 
 .tree-node-cards {
     background-color: #ffd700;
     font-weight: bold;
+    padding: var(--spacing-xs) var(--spacing-sm);
 }
 
 .tree-node-card {
     background-color: white;
-    font-weight: bold;
     border: 1px solid #ccc;
+    padding: var(--spacing-xs) var(--spacing-sm);
 }
 
-/* Tabs */
+/* Tree Error & Loading */
+.tree-error {
+    margin: 5px 0;
+    padding: 5px;
+    border-radius: 4px;
+    background-color: #fff8f8;
+    border: 1px solid #f8d7da;
+    font-size: 12px;
+}
+
+.load-more-btn {
+    color: var(--primary-color);
+    cursor: pointer;
+    text-decoration: underline;
+    padding: 2px 0;
+    font-size: 12px;
+}
+
+.loading-placeholder {
+    font-style: italic;
+    color: #666;
+    padding: 2px 0;
+}
+
+/* ================ Tabs ================ */
 .tabs-container {
     flex: 1;
     display: flex;
@@ -547,7 +682,7 @@ body {
 
 .tabs-content {
     flex: 1;
-    overflow: hidden;
+    overflow: auto;
     background-color: white;
     border: 1px solid var(--border-color);
     border-top: none;
@@ -560,13 +695,14 @@ body {
     padding: var(--spacing-md);
     height: 100%;
     overflow: auto;
+    padding-bottom: 100px;
 }
 
 .tab-content.active {
     display: block;
 }
 
-/* Hand Matrix */
+/* ================ Hand Matrix ================ */
 .hand-matrix-container {
     display: flex;
     flex-direction: column;
@@ -628,7 +764,7 @@ body {
 
 #hand-details {
     overflow: auto;
-    max-height: 300px;
+    max-height: 400px;
 }
 
 #hand-details-content {
@@ -666,7 +802,7 @@ body {
     color: white;
 }
 
-/* Strategy Views */
+/* ================ Strategy Views ================ */
 #rough-strategy-container,
 #ev-analysis-container {
     display: flex;
@@ -750,7 +886,7 @@ body {
     margin-bottom: var(--spacing-xs);
 }
 
-/* EV Analysis */
+/* ================ EV Analysis Charts ================ */
 .chart-container {
     width: 100%;
     height: 200px;
@@ -790,7 +926,28 @@ body {
     font-size: 12px;
 }
 
-/* Responsive Adaptations */
+/* ================ Scrollbar Styling ================ */
+.tree-container::-webkit-scrollbar,
+.right-panel::-webkit-scrollbar,
+.tabs-content::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+.tree-container::-webkit-scrollbar-thumb,
+.right-panel::-webkit-scrollbar-thumb,
+.tabs-content::-webkit-scrollbar-thumb {
+    background: #ccc;
+    border-radius: 4px;
+}
+
+.tree-container::-webkit-scrollbar-thumb:hover,
+.right-panel::-webkit-scrollbar-thumb:hover,
+.tabs-content::-webkit-scrollbar-thumb:hover {
+    background: #bbb;
+}
+
+/* ================ Responsive Adaptations ================ */
 @media (max-width: 768px) {
     .split-view {
         flex-direction: column;
@@ -814,188 +971,4 @@ body {
     .matrix-cell {
         font-size: 10px;
     }
-}
-
-/* Additional styles for the improved tree view */
-
-.tree-controls {
-    margin-bottom: 8px;
-    padding: 4px;
-    border-bottom: 1px solid var(--border-color);
-}
-
-.load-more-btn {
-    color: var(--primary-color);
-    cursor: pointer;
-    padding: 2px 4px;
-    border-radius: 3px;
-    font-size: 12px;
-}
-
-.load-more-btn:hover {
-    background-color: #f0f0f0;
-    text-decoration: underline;
-}
-
-.loading-placeholder {
-    font-style: italic;
-    color: #666;
-    padding: 2px 0;
-}
-
-/* Tree view performance improvements */
-.tree-container {
-    contain: content;
-}
-
-.tree-item {
-    contain: content;
-}
-
-/* Add a subtle animation for toggle */
-.tree-toggle {
-    transition: transform 0.2s ease;
-}
-
-.tree-children {
-    overflow: hidden;
-    max-height: 0;
-    transition: max-height 0.3s ease-out;
-}
-
-.tree-children:not(.collapsed) {
-    max-height: 9999px;
-    /* Large enough to show all content */
-    transition: max-height 0.5s ease-in;
-}
-
-/* Improved Tree View Styling - Removes Placeholders */
-
-/* Tight tree layout without extra spaces */
-.tree-view {
-    list-style-type: none;
-    padding-left: var(--spacing-sm);
-    margin: 0;
-}
-
-.tree-view li {
-    margin: 0;
-    padding: 0;
-}
-
-/* Improved toggle button */
-.tree-toggle {
-    margin-right: var(--spacing-xs);
-    width: 16px;
-    height: 16px;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    cursor: pointer;
-    transition: transform 0.2s;
-}
-
-/* Make sure the children container has no extra margin */
-.tree-children {
-    list-style-type: none;
-    padding-left: var(--spacing-md);
-    margin: 0;
-    overflow: hidden;
-    transition: max-height 0.2s ease-out;
-    max-height: 0;
-}
-
-.tree-children:not(.collapsed) {
-    max-height: 5000px;
-    /* Large enough to contain all children */
-    transition: max-height 0.3s ease-in;
-}
-
-/* Improved tree items for better alignment */
-.tree-item {
-    display: flex;
-    align-items: center;
-    cursor: pointer;
-    padding: var(--spacing-xs) var(--spacing-sm);
-    border-radius: 4px;
-    transition: background-color 0.1s;
-    white-space: nowrap;
-    margin: 0;
-}
-
-.tree-item:hover {
-    background-color: #f0f0f0;
-}
-
-.tree-item.selected {
-    background-color: var(--primary-color);
-    color: white;
-}
-
-/* Error styling */
-.tree-error {
-    margin: 5px 0;
-    padding: 5px;
-    border-radius: 4px;
-    background-color: #fff8f8;
-    border: 1px solid #f8d7da;
-    font-size: 12px;
-}
-
-.load-more-btn {
-    color: var(--primary-color);
-    cursor: pointer;
-    text-decoration: underline;
-    padding: 2px 0;
-    font-size: 12px;
-}
-
-/* Better visual cues for different node types */
-.tree-node-action {
-    display: inline-flex;
-    align-items: center;
-    padding: var(--spacing-xs) var(--spacing-sm);
-    border-radius: 4px;
-    margin-left: var(--spacing-xs);
-    font-weight: bold;
-    min-width: 50px;
-    justify-content: center;
-}
-
-.action-node-check {
-    background-color: var(--check-color);
-    color: black;
-}
-
-.action-node-call {
-    background-color: var(--call-color);
-    color: white;
-}
-
-.action-node-bet,
-.action-node-raise {
-    background-color: var(--bet-color);
-    color: black;
-}
-
-.action-node-fold {
-    background-color: var(--fold-color);
-    color: black;
-}
-
-.tree-node-cards {
-    background-color: #ffd700;
-    font-weight: bold;
-    padding: var(--spacing-xs) var(--spacing-sm);
-    border-radius: 4px;
-    margin-left: var(--spacing-xs);
-}
-
-.tree-node-card {
-    background-color: white;
-    font-weight: bold;
-    border: 1px solid #ccc;
-    padding: var(--spacing-xs) var(--spacing-sm);
-    border-radius: 4px;
-    margin-left: var(--spacing-xs);
 }
